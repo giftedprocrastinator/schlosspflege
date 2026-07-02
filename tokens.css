@@ -1,0 +1,23 @@
+/* ============================================================
+   INKA · BRAND TOKENS — eine Quelle für alle Beispielseiten
+   Spiegelt die Palette aus brandbook.html (WCAG-AA-optimiert).
+   Nur was überall identisch ist, lebt hier. Pro-Direction-Tokens
+   (--ink / --ink-soft / --ink-mute / --paper / --line / Fonts)
+   bleiben lokal in jeder Seite — das ist ihre Identität.
+   ============================================================ */
+:root{
+  /* Gradient-Anker — Tab A „Frisch" */
+  --g1:#90F7EC; --g2:#32CCBC;
+  --grad:linear-gradient(135deg,var(--g1),var(--g2));
+
+  /* Mint/Teal-Rampe — untere Stufen 600–800 WCAG-AA-optimiert */
+  --mint-50:#EAFDFA;  --mint-100:#CFF9F2; --mint-200:#9EEFE4;
+  --mint-300:#6FE6D8; --mint-400:#32CCBC; --mint-500:#20A99B;
+  --mint-600:#0F7F70; --mint-700:#0C5F56; --mint-800:#08322D;
+
+  /* Semantik */
+  --ok:#1FA97C; --warn:#D98A1F; --err:#DE4B54; --info:#2C93B8;
+}
+
+/* Tab B „Tiefe" — kontrastreicher Zwilling */
+body[data-pal="B"]{ --g1:#94FFF5; --g2:#1D8278; }
