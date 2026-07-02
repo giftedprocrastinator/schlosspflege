@@ -3,8 +3,9 @@
 Familien-Organizer (Wohnung Zone für Zone). Statische App + Supabase.
 
 ## Lokal starten
-1. `cp config.example.js config.js` und Werte eintragen (aus Supabase → Settings → API).
-2. Statisch serven (z. B. `python3 -m http.server` im `APP/`-Ordner) und `index.html` öffnen.
+1. `config.js` enthält URL + Publishable-Key (öffentlich ok — RLS schützt die Daten).
+   Für ein eigenes Supabase-Projekt: Werte aus Supabase → Settings → API eintragen.
+2. Statisch serven (z. B. `php -S 0.0.0.0:8642` im App-Ordner) und `index.html` öffnen.
 
 ## Supabase einrichten
 1. Projekt auf supabase.com anlegen.
