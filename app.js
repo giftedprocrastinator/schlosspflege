@@ -1,6 +1,6 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
-import { zoneProgress } from "./logic.js";
+import { zoneProgress, taskIsDone } from "./logic.js";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const $ = (id) => document.getElementById(id);
@@ -83,6 +83,45 @@ supabase.auth.onAuthStateChange(() => route());
 route();
 
 // --- Zonen-Plan ---
+
+// Beispiel-Zonen mit Standardaufgaben + empfohlenem Turnus (Tage; null = einmalig).
+const SEED = [
+  { emoji: "🍽️", name: "Küche", tasks: [
+    ["Arbeitsflächen abwischen", 1], ["Spüle reinigen", 1], ["Boden wischen", 7],
+    ["Mülleimer auswaschen", 14], ["Kühlschrank auswischen", 30], ["Backofen reinigen", 90],
+  ]},
+  { emoji: "🛁", name: "Bad", tasks: [
+    ["Toilette putzen", 3], ["Handtücher wechseln", 4], ["Waschbecken & Armaturen", 7],
+    ["Dusche/Badewanne reinigen", 7], ["Boden wischen", 7],
+  ]},
+  { emoji: "🛏️", name: "Schlafzimmer", tasks: [
+    ["Boden saugen", 7], ["Bettwäsche wechseln", 14], ["Staub wischen", 14], ["Fenster putzen", 90],
+  ]},
+  { emoji: "🛋️", name: "Wohnzimmer", tasks: [
+    ["Aufräumen", 1], ["Staub wischen", 7], ["Boden saugen", 7],
+    ["Sofa absaugen", 30], ["Fenster putzen", 90],
+  ]},
+];
+
+const INTERVALS = [[null, "einmalig"], [1, "täglich"], [3, "alle 3 Tage"], [4, "alle 4 Tage"],
+  [7, "wöchentlich"], [14, "alle 2 Wochen"], [30, "monatlich"], [90, "alle 3 Monate"]];
+
+function intervalLabel(days) {
+  const hit = INTERVALS.find(([d]) => d === days);
+  return hit ? hit[1] : `alle ${days} Tage`;
+}
+
+async function seedZones() {
+  for (const [i, z] of SEED.entries()) {
+    const { data: zone } = await supabase.from("zones")
+      .insert({ household_id: currentHousehold.id, name: z.name, emoji: z.emoji, position: i })
+      .select().single();
+    if (!zone) continue;
+    await supabase.from("tasks").insert(z.tasks.map(([title, days], j) =>
+      ({ zone_id: zone.id, title, interval_days: days, position: j })));
+  }
+  renderZonen();
+}
 async function loadZonen() {
   const { data: zones } = await supabase
     .from("zones").select("*").eq("household_id", currentHousehold.id)
@@ -100,25 +139,31 @@ async function renderZonen() {
   const { zones, tasks } = await loadZonen();
   const byZone = (zid) => tasks.filter(t => t.zone_id === zid);
   const el = $("view-zonen");
+  const intervalOptions = INTERVALS.map(([d, l]) => `<option value="${d ?? ""}">${l}</option>`).join("");
   el.innerHTML = `
     <div class="kh">Diese Woche</div>
     <h2 class="title">Zonen-Plan</h2>
+    ${zones.length === 0 ? `<p class="mut" style="margin-bottom:10px">Noch keine Zonen — leg los mit unseren Vorschlägen samt empfohlener Rhythmen, oder erstelle eigene.</p>
+      <button class="btn" id="seed-zones" style="margin-bottom:18px">✨ Beispiel-Zonen einfügen</button>` : ""}
     <div id="zone-list">${zones.map(z => {
       const zt = byZone(z.id); const p = zoneProgress(zt);
       return `<div class="zone" data-zone="${z.id}">
         <div class="zone-head"><span class="emoji">${z.emoji}</span>
-          <h3>${z.name}</h3><span class="del" data-delzone="${z.id}">löschen</span></div>
+          <h3 data-rename="${z.id}" title="Tippen zum Umbenennen">${z.name}</h3><span class="del" data-delzone="${z.id}">löschen</span></div>
         <div class="prog"><div class="lab"><span>${p.done} von ${p.total} erledigt</span><span>${p.pct} %</span></div>
           <div class="track"><i style="width:${p.pct}%"></i></div></div>
-        ${zt.map(t => `<div class="task ${t.done ? "done" : "todo"}">
-          <span class="ck" data-toggle="${t.id}" data-done="${t.done}">${t.done ? "✓" : ""}</span>
-          <span>${t.title}</span><span class="del" data-deltask="${t.id}">✕</span></div>`).join("")}
+        ${zt.map(t => { const isDone = taskIsDone(t);
+          return `<div class="task ${isDone ? "done" : "todo"}">
+          <span class="ck" data-toggle="${t.id}" data-done="${isDone}">${isDone ? "✓" : ""}</span>
+          <span>${t.title}${t.interval_days ? ` <em class="turnus">${intervalLabel(t.interval_days)}</em>` : ""}</span>
+          <span class="del" data-deltask="${t.id}">✕</span></div>`; }).join("")}
         <div class="addrow"><input placeholder="Aufgabe hinzufügen …" data-newtask="${z.id}">
+          <select data-newinterval="${z.id}">${intervalOptions}</select>
           <button class="btn" data-addtask="${z.id}">+</button></div>
       </div>`;
     }).join("")}</div>
     <div class="addrow" style="margin-top:18px">
-      <input id="new-zone" placeholder="Neue Zone (z. B. 🍽️ Küche) …">
+      <input id="new-zone" placeholder="Neue Zone (z. B. 🧺 Waschküche) …">
       <button class="btn" id="add-zone">Zone anlegen</button>
     </div>`;
   wireZonen();
@@ -127,10 +172,14 @@ async function renderZonen() {
 function wireZonen() {
   $("add-zone").onclick = () => addZone($("new-zone").value.trim());
   const el = $("view-zonen");
+  const seedBtn = $("seed-zones");
+  if (seedBtn) seedBtn.onclick = () => { seedBtn.disabled = true; seedBtn.textContent = "Lege an …"; seedZones(); };
+  el.querySelectorAll("[data-rename]").forEach(h => h.onclick = () => renameZone(h.dataset.rename, h.textContent));
   el.querySelectorAll("[data-addtask]").forEach(b => b.onclick = () => {
     const zid = b.dataset.addtask;
     const inp = el.querySelector(`[data-newtask="${zid}"]`);
-    addTask(zid, inp.value.trim());
+    const sel = el.querySelector(`[data-newinterval="${zid}"]`);
+    addTask(zid, inp.value.trim(), sel.value ? Number(sel.value) : null);
   });
   el.querySelectorAll("[data-toggle]").forEach(c => c.onclick = () =>
     toggleTask(c.dataset.toggle, c.dataset.done !== "true"));
@@ -155,9 +204,18 @@ async function delZone(id) {
   await supabase.from("zones").delete().eq("id", id);
   renderZonen();
 }
-async function addTask(zoneId, title) {
+async function renameZone(id, current) {
+  const text = prompt("Zone umbenennen (Emoji voranstellen möglich):", current);
+  if (!text || !text.trim() || text.trim() === current) return;
+  const { emoji, name } = splitEmoji(text.trim());
+  const patch = { name };
+  if (emoji !== "🏠" || text.trim().startsWith("🏠")) patch.emoji = emoji;
+  await supabase.from("zones").update(patch).eq("id", id);
+  renderZonen();
+}
+async function addTask(zoneId, title, intervalDays = null) {
   if (!title) return;
-  await supabase.from("tasks").insert({ zone_id: zoneId, title });
+  await supabase.from("tasks").insert({ zone_id: zoneId, title, interval_days: intervalDays });
   renderZonen();
 }
 async function toggleTask(id, done) {

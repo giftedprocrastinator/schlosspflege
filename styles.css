@@ -60,6 +60,9 @@ h2.title{font-size:26px;font-weight:700;letter-spacing:-.01em;margin:6px 0 18px}
 .task.todo span{color:var(--ink-soft)}
 .task .del{color:var(--ink-mute);cursor:pointer;font-size:12px}
 .addrow{display:flex;gap:8px;margin-top:10px}
-.addrow input{flex:1}
+.addrow input{flex:1;min-width:0}
 .addrow .btn{padding:9px 14px}
+.addrow select{font:inherit;font-size:13px;padding:9px 8px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink-soft);max-width:130px}
+.turnus{font-style:normal;font-size:11px;font-weight:600;color:var(--ink-mute);background:#f0f3f2;border-radius:999px;padding:2px 8px;margin-left:6px;white-space:nowrap}
+.zone-head h3[data-rename]{cursor:pointer}
 .code-box{font-family:ui-monospace,monospace;font-size:18px;background:#f5f6f5;border:1px dashed var(--line);border-radius:10px;padding:12px 16px;text-align:center;letter-spacing:.08em}

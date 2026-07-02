@@ -32,6 +32,7 @@ create table tasks (
   title text not null,
   done boolean not null default false,
   done_at timestamptz,
+  interval_days int, -- Turnus in Tagen (null = einmalige Aufgabe)
   planned_for date,
   position int not null default 0,
   created_at timestamptz not null default now()
