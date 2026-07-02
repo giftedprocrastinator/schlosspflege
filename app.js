@@ -259,7 +259,9 @@ async function renderZonen() {
     ${zones.length === 0 ? `<p class="mut" style="margin-bottom:10px">${t("noZones")}</p>` : ""}
     <div class="zone-grid">${zones.map(z => {
       const p = zoneProgress(tasks.filter(t => t.zone_id === z.id));
-      return `<button class="tile" data-open="${z.id}">
+      // Ampel-Farbe nach Fortschritt: rosé = viel offen, sand = mittendrin, mint = fast fertig.
+      const cls = p.total === 0 ? "" : p.pct < 35 ? "low" : p.pct < 70 ? "mid" : "high";
+      return `<button class="tile ${cls}" data-open="${z.id}">
         <span class="tile-emoji">${z.emoji}</span>
         <span class="tile-name">${z.name}</span>
         <div class="track"><i style="width:${p.pct}%"></i></div>
