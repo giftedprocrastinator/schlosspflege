@@ -125,15 +125,13 @@ function intervalLabel(days) {
   return hit ? hit[1] : `alle ${days} Tage`;
 }
 
-async function seedZones() {
-  for (const [i, z] of SEED.entries()) {
-    const { data: zone } = await supabase.from("zones")
-      .insert({ household_id: currentHousehold.id, name: z.name, emoji: z.emoji, position: i })
-      .select().single();
-    if (!zone) continue;
-    await supabase.from("tasks").insert(z.tasks.map(([title, days], j) =>
-      ({ zone_id: zone.id, title, interval_days: days, position: j })));
-  }
+// Eine Zone aus einer Vorlage anlegen (inkl. Standardaufgaben) — mehrfach möglich.
+async function addZoneFromTemplate(tpl) {
+  const { data: zone } = await supabase.from("zones")
+    .insert({ household_id: currentHousehold.id, name: tpl.name, emoji: tpl.emoji })
+    .select().single();
+  if (zone) await supabase.from("tasks").insert(tpl.tasks.map(([title, days], j) =>
+    ({ zone_id: zone.id, title, interval_days: days, position: j })));
   renderZonen();
 }
 async function loadZonen() {
@@ -157,8 +155,7 @@ async function renderZonen() {
   el.innerHTML = `
     <div class="kh">Diese Woche</div>
     <h2 class="title">Zonen-Plan</h2>
-    ${zones.length === 0 ? `<p class="mut" style="margin-bottom:10px">Noch keine Zonen — leg los mit unseren Vorschlägen samt empfohlener Rhythmen, oder erstelle eigene.</p>
-      <button class="btn" id="seed-zones" style="margin-bottom:18px">✨ Beispiel-Zonen einfügen</button>` : ""}
+    ${zones.length === 0 ? `<p class="mut" style="margin-bottom:10px">Noch keine Zonen — wähle unten eine Vorlage (mit Standardaufgaben samt Rhythmus) oder erstelle eine eigene.</p>` : ""}
     <div id="zone-list">${zones.map(z => {
       const zt = byZone(z.id); const p = zoneProgress(zt);
       return `<div class="zone" data-zone="${z.id}">
@@ -177,17 +174,26 @@ async function renderZonen() {
       </div>`;
     }).join("")}</div>
     <div class="addrow" style="margin-top:18px">
-      <input id="new-zone" placeholder="Neue Zone (z. B. 🧺 Waschküche) …">
+      <select id="new-zone-tpl" class="zone-tpl">
+        ${SEED.map((z, i) => `<option value="${i}">${z.emoji} ${z.name}</option>`).join("")}
+        <option value="custom">✏️ Eigene Zone …</option>
+      </select>
       <button class="btn" id="add-zone">Zone anlegen</button>
+    </div>
+    <div class="addrow hidden" id="custom-zone-row">
+      <input id="new-zone" placeholder="Name der Zone (z. B. 🧺 Waschküche) …">
     </div>`;
   wireZonen();
 }
 
 function wireZonen() {
-  $("add-zone").onclick = () => addZone($("new-zone").value.trim());
+  const tpl = $("new-zone-tpl");
+  tpl.onchange = () => $("custom-zone-row").classList.toggle("hidden", tpl.value !== "custom");
+  $("add-zone").onclick = () => {
+    if (tpl.value === "custom") addZone($("new-zone").value.trim());
+    else addZoneFromTemplate(SEED[Number(tpl.value)]);
+  };
   const el = $("view-zonen");
-  const seedBtn = $("seed-zones");
-  if (seedBtn) seedBtn.onclick = () => { seedBtn.disabled = true; seedBtn.textContent = "Lege an …"; seedZones(); };
   el.querySelectorAll("[data-rename]").forEach(h => h.onclick = () => renameZone(h.dataset.rename, h.textContent));
   el.querySelectorAll("[data-addtask]").forEach(b => b.onclick = () => {
     const zid = b.dataset.addtask;
