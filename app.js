@@ -99,9 +99,20 @@ async function route() {
     .limit(1);
   if (!members || members.length === 0) { showScreen("setup-view"); return; }
   currentHousehold = members[0].households;
+  $("hh-name").textContent = currentHousehold.name;
   showScreen("app-view");
   showView("zonen");
 }
+
+// --- Burger-Menü ---
+$("menu-btn").addEventListener("click", (e) => {
+  e.stopPropagation();
+  $("menu").classList.toggle("hidden");
+});
+document.addEventListener("click", (e) => {
+  if (!$("menu").classList.contains("hidden") && !$("menu").contains(e.target))
+    $("menu").classList.add("hidden");
+});
 
 // --- Magic-Link Login ---
 $("login-send").addEventListener("click", async () => {
