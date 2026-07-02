@@ -1,6 +1,4 @@
 -- Schlosspflege · Supabase-Schema (Phase 1)
-create extension if not exists pgcrypto;
-
 create table households (
   id uuid primary key default gen_random_uuid(),
   name text not null,
@@ -54,7 +52,8 @@ returns households language plpgsql security definer set search_path = public as
 declare h households;
 begin
   insert into households (name, invite_code, created_by)
-  values (p_name, encode(gen_random_bytes(4), 'hex'), auth.uid())
+  -- Invite-Code: 8 Hex-Zeichen aus einer eingebauten Zufalls-UUID (kein pgcrypto nötig).
+  values (p_name, substr(gen_random_uuid()::text, 1, 8), auth.uid())
   returning * into h;
   insert into household_members (household_id, user_id, role)
   values (h.id, auth.uid(), 'owner');
