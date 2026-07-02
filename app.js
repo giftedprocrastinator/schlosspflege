@@ -36,7 +36,9 @@ $("login-send").addEventListener("click", async () => {
   const { error } = await supabase.auth.signInWithOtp({
     email, options: { emailRedirectTo: window.location.href }
   });
-  $("login-msg").textContent = error ? error.message : "Link gesendet — prüf dein Postfach ✉️";
+  $("login-msg").textContent = error
+    ? ("Versand fehlgeschlagen: " + (error.message || error.code || "unbekannter Fehler (E-Mail-Einstellungen prüfen)"))
+    : "Link gesendet — prüf dein Postfach ✉️";
 });
 
 $("logout").addEventListener("click", async () => {
