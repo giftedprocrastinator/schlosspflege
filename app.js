@@ -263,7 +263,7 @@ async function renderZonen() {
         <span class="tile-emoji">${z.emoji}</span>
         <span class="tile-name">${z.name}</span>
         <div class="track"><i style="width:${p.pct}%"></i></div>
-        <span class="tile-sub">${p.total ? t("doneOf", p.done, p.total) : t("noTasksTile")}</span>
+        <span class="tile-sub">${p.total ? t("doneOf", p.done, p.total) + (p.pct === 100 ? " ✨" : "") : t("noTasksTile")}</span>
       </button>`;
     }).join("")}</div>
     <div class="addrow" style="margin-top:18px">
