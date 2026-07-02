@@ -46,6 +46,14 @@ h2.title{font-size:26px;font-weight:700;letter-spacing:-.01em;margin:6px 0 18px}
 .track{height:9px;border-radius:999px;background:#eceeec;overflow:hidden}
 .track i{display:block;height:100%;background:var(--grad);border-radius:999px;transition:width .3s var(--ease)}
 
+/* Zonen-Kacheln (Übersicht) */
+.zone-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.tile{font:inherit;text-align:left;background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:8px;cursor:pointer;transition:.15s var(--ease)}
+.tile:active{transform:scale(.97)}
+.tile-emoji{font-size:26px}
+.tile-name{font-weight:700;font-size:15px;color:var(--ink)}
+.tile-sub{font-size:11px;color:var(--ink-mute)}
+
 /* Zonen & Tasks */
 .zone{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:14px}
 .zone-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
@@ -53,6 +61,7 @@ h2.title{font-size:26px;font-weight:700;letter-spacing:-.01em;margin:6px 0 18px}
 .zone-head h3{font-size:16px;font-weight:700;flex:1}
 .zone-head .del{color:var(--ink-mute);cursor:pointer;font-size:13px}
 .task{display:flex;align-items:center;gap:11px;padding:8px 0;border-top:1px solid var(--line)}
+.task:first-child{border-top:0}
 .task .ck{width:19px;height:19px;border-radius:6px;flex:none;display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;cursor:pointer;border:2px solid #d7dbd8}
 .task.done .ck{background:var(--grad);border-color:transparent}
 .task.done span{font-weight:600}

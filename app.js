@@ -147,31 +147,26 @@ async function loadZonen() {
   return { zones: zones || [], tasks };
 }
 
+let openZoneId = null; // gerade geöffnete Zone (null = Kachel-Übersicht)
+
 async function renderZonen() {
   const { zones, tasks } = await loadZonen();
-  const byZone = (zid) => tasks.filter(t => t.zone_id === zid);
   const el = $("view-zonen");
-  const intervalOptions = INTERVALS.map(([d, l]) => `<option value="${d ?? ""}">${l}</option>`).join("");
+  const open = zones.find(z => z.id === openZoneId);
+  if (open) { renderZoneDetail(el, open, tasks.filter(t => t.zone_id === open.id)); return; }
+  openZoneId = null;
   el.innerHTML = `
     <div class="kh">Diese Woche</div>
     <h2 class="title">Zonen-Plan</h2>
     ${zones.length === 0 ? `<p class="mut" style="margin-bottom:10px">Noch keine Zonen — wähle unten eine Vorlage (mit Standardaufgaben samt Rhythmus) oder erstelle eine eigene.</p>` : ""}
-    <div id="zone-list">${zones.map(z => {
-      const zt = byZone(z.id); const p = zoneProgress(zt);
-      return `<div class="zone" data-zone="${z.id}">
-        <div class="zone-head"><span class="emoji">${z.emoji}</span>
-          <h3 data-rename="${z.id}" title="Tippen zum Umbenennen">${z.name}</h3><span class="del" data-delzone="${z.id}">löschen</span></div>
-        <div class="prog"><div class="lab"><span>${p.done} von ${p.total} erledigt</span><span>${p.pct} %</span></div>
-          <div class="track"><i style="width:${p.pct}%"></i></div></div>
-        ${zt.map(t => { const isDone = taskIsDone(t);
-          return `<div class="task ${isDone ? "done" : "todo"}">
-          <span class="ck" data-toggle="${t.id}" data-done="${isDone}">${isDone ? "✓" : ""}</span>
-          <span>${t.title}${t.interval_days ? ` <em class="turnus">${intervalLabel(t.interval_days)}</em>` : ""}</span>
-          <span class="del" data-deltask="${t.id}">✕</span></div>`; }).join("")}
-        <div class="addrow"><input placeholder="Aufgabe hinzufügen …" data-newtask="${z.id}">
-          <select data-newinterval="${z.id}">${intervalOptions}</select>
-          <button class="btn" data-addtask="${z.id}">+</button></div>
-      </div>`;
+    <div class="zone-grid">${zones.map(z => {
+      const p = zoneProgress(tasks.filter(t => t.zone_id === z.id));
+      return `<button class="tile" data-open="${z.id}">
+        <span class="tile-emoji">${z.emoji}</span>
+        <span class="tile-name">${z.name}</span>
+        <div class="track"><i style="width:${p.pct}%"></i></div>
+        <span class="tile-sub">${p.total ? `${p.done} von ${p.total} erledigt` : "noch keine Aufgaben"}</span>
+      </button>`;
     }).join("")}</div>
     <div class="addrow" style="margin-top:18px">
       <select id="new-zone-tpl" class="zone-tpl">
@@ -183,28 +178,46 @@ async function renderZonen() {
     <div class="addrow hidden" id="custom-zone-row">
       <input id="new-zone" placeholder="Name der Zone (z. B. 🧺 Waschküche) …">
     </div>`;
-  wireZonen();
-}
-
-function wireZonen() {
+  el.querySelectorAll("[data-open]").forEach(b => b.onclick = () => { openZoneId = b.dataset.open; renderZonen(); });
   const tpl = $("new-zone-tpl");
   tpl.onchange = () => $("custom-zone-row").classList.toggle("hidden", tpl.value !== "custom");
   $("add-zone").onclick = () => {
     if (tpl.value === "custom") addZone($("new-zone").value.trim());
     else addZoneFromTemplate(SEED[Number(tpl.value)]);
   };
-  const el = $("view-zonen");
-  el.querySelectorAll("[data-rename]").forEach(h => h.onclick = () => renameZone(h.dataset.rename, h.textContent));
-  el.querySelectorAll("[data-addtask]").forEach(b => b.onclick = () => {
-    const zid = b.dataset.addtask;
-    const inp = el.querySelector(`[data-newtask="${zid}"]`);
-    const sel = el.querySelector(`[data-newinterval="${zid}"]`);
-    addTask(zid, inp.value.trim(), sel.value ? Number(sel.value) : null);
-  });
+}
+
+function renderZoneDetail(el, z, zt) {
+  const p = zoneProgress(zt);
+  const intervalOptions = INTERVALS.map(([d, l]) => `<option value="${d ?? ""}">${l}</option>`).join("");
+  el.innerHTML = `
+    <button class="link" id="zone-back">← Alle Zonen</button>
+    <div class="zone-head" style="margin:14px 0 10px"><span class="emoji">${z.emoji}</span>
+      <h3 data-rename="${z.id}" title="Tippen zum Umbenennen">${z.name}</h3>
+      <span class="del" data-delzone="${z.id}">löschen</span></div>
+    <div class="prog"><div class="lab"><span>${p.done} von ${p.total} erledigt</span><span>${p.pct} %</span></div>
+      <div class="track"><i style="width:${p.pct}%"></i></div></div>
+    <div class="zone" style="margin-top:14px">
+      ${zt.map(t => { const isDone = taskIsDone(t);
+        return `<div class="task ${isDone ? "done" : "todo"}">
+        <span class="ck" data-toggle="${t.id}" data-done="${isDone}">${isDone ? "✓" : ""}</span>
+        <span>${t.title}${t.interval_days ? ` <em class="turnus">${intervalLabel(t.interval_days)}</em>` : ""}</span>
+        <span class="del" data-deltask="${t.id}">✕</span></div>`; }).join("") || "<p class='mut'>Noch keine Aufgaben.</p>"}
+      <div class="addrow"><input placeholder="Aufgabe hinzufügen …" data-newtask="${z.id}">
+        <select data-newinterval="${z.id}">${intervalOptions}</select>
+        <button class="btn" data-addtask="${z.id}">+</button></div>
+    </div>`;
+  $("zone-back").onclick = () => { openZoneId = null; renderZonen(); };
+  el.querySelector("[data-rename]").onclick = () => renameZone(z.id, z.name);
+  el.querySelector("[data-delzone]").onclick = () => delZone(z.id);
   el.querySelectorAll("[data-toggle]").forEach(c => c.onclick = () =>
     toggleTask(c.dataset.toggle, c.dataset.done !== "true"));
   el.querySelectorAll("[data-deltask]").forEach(x => x.onclick = () => delTask(x.dataset.deltask));
-  el.querySelectorAll("[data-delzone]").forEach(x => x.onclick = () => delZone(x.dataset.delzone));
+  el.querySelector("[data-addtask]").onclick = () => {
+    const inp = el.querySelector("[data-newtask]");
+    const sel = el.querySelector("[data-newinterval]");
+    addTask(z.id, inp.value.trim(), sel.value ? Number(sel.value) : null);
+  };
 }
 
 // Emoji-Präfix aus dem Namen ziehen (erstes „Wort“, wenn Emoji), sonst Default.
