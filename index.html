@@ -41,23 +41,23 @@
 
   <!-- APP -->
   <section id="app-view" class="app hidden">
-    <aside class="side">
+    <header class="topbar">
       <div class="brand"><span class="brand-dot"></span>Schlosspflege</div>
-      <nav id="sidebar-nav">
-        <a data-view="zonen" class="act">Zonen-Plan</a>
-        <a data-view="fortschritt">Fortschritt</a>
-        <a data-view="haushalt">Haushalt</a>
-      </nav>
-      <div class="side-foot">
+      <div class="topbar-user">
         <span id="user-email" class="mut"></span>
         <button id="logout" class="link">Abmelden</button>
       </div>
-    </aside>
+    </header>
     <main class="main">
       <div id="view-zonen"></div>
       <div id="view-fortschritt" class="hidden"></div>
       <div id="view-haushalt" class="hidden"></div>
     </main>
+    <nav id="sidebar-nav" class="tabbar">
+      <a data-view="zonen" class="act">Zonen</a>
+      <a data-view="fortschritt">Fortschritt</a>
+      <a data-view="haushalt">Haushalt</a>
+    </nav>
   </section>
 
   <script type="module" src="app.js"></script>
