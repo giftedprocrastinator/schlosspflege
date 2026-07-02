@@ -25,6 +25,8 @@ input:focus{outline:2px solid color-mix(in srgb,var(--g2) 50%,transparent);borde
 .link{background:none;border:0;color:var(--ink-mute);font:inherit;cursor:pointer;text-decoration:underline}
 .msg{font-size:13px;color:var(--ink-soft);min-height:18px}
 .brand{font-weight:700;font-size:18px;display:flex;align-items:center;gap:9px}
+.lang{font-size:12px;font-weight:600;text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:3px 10px;color:var(--ink-soft)}
+.brand .lang{margin-left:auto}
 .brand-dot{width:22px;height:22px;border-radius:7px;background:var(--grad)}
 .mut{color:var(--ink-mute);font-size:12px}
 

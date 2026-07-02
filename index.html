@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Schlosspflege</title>
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Schlosspflege">
+<meta name="theme-color" content="#32CCBC">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -15,10 +22,10 @@
   <!-- LOGIN -->
   <section id="login-view" class="center hidden">
     <div class="card auth">
-      <div class="brand"><span class="brand-dot"></span>Schlosspflege</div>
-      <p class="lede">Ordnung fürs Zuhause — Zone für Zone.</p>
-      <input id="login-email" type="email" placeholder="deine@email.de" autocomplete="email">
-      <button id="login-send" class="btn">Magic-Link senden</button>
+      <div class="brand"><span class="brand-dot"></span>Schlosspflege<button class="link lang" data-langtoggle>EN</button></div>
+      <p class="lede" data-i18n="lede">Ordnung fürs Zuhause — Zone für Zone.</p>
+      <input id="login-email" type="email" placeholder="deine@email.de" autocomplete="email" data-i18n-ph="emailPh">
+      <button id="login-send" class="btn" data-i18n="sendLink">Magic-Link senden</button>
       <p id="login-msg" class="msg"></p>
     </div>
   </section>
@@ -26,15 +33,15 @@
   <!-- HAUSHALT-SETUP (kein Haushalt vorhanden) -->
   <section id="setup-view" class="center hidden">
     <div class="card auth">
-      <div class="brand"><span class="brand-dot"></span>Schlosspflege</div>
-      <h2>Haushalt einrichten</h2>
-      <label>Neuen Haushalt anlegen</label>
-      <input id="setup-name" type="text" placeholder="z. B. „Unser Schloss“">
-      <button id="setup-create" class="btn">Anlegen</button>
-      <div class="or">oder</div>
-      <label>Einem Haushalt beitreten</label>
-      <input id="setup-code" type="text" placeholder="Invite-Code">
-      <button id="setup-join" class="btn ghost">Beitreten</button>
+      <div class="brand"><span class="brand-dot"></span>Schlosspflege<button class="link lang" data-langtoggle>EN</button></div>
+      <h2 data-i18n="setupTitle">Haushalt einrichten</h2>
+      <label data-i18n="createLabel">Neuen Haushalt anlegen</label>
+      <input id="setup-name" type="text" placeholder="z. B. „Unser Schloss“" data-i18n-ph="namePh">
+      <button id="setup-create" class="btn" data-i18n="create">Anlegen</button>
+      <div class="or" data-i18n="or">oder</div>
+      <label data-i18n="joinLabel">Einem Haushalt beitreten</label>
+      <input id="setup-code" type="text" placeholder="Invite-Code" data-i18n-ph="codePh">
+      <button id="setup-join" class="btn ghost" data-i18n="join">Beitreten</button>
       <p id="setup-msg" class="msg"></p>
     </div>
   </section>
@@ -45,7 +52,8 @@
       <div class="brand"><span class="brand-dot"></span>Schlosspflege</div>
       <div class="topbar-user">
         <span id="user-email" class="mut"></span>
-        <button id="logout" class="link">Abmelden</button>
+        <button class="link lang" data-langtoggle>EN</button>
+        <button id="logout" class="link" data-i18n="logout">Abmelden</button>
       </div>
     </header>
     <main class="main">
@@ -54,9 +62,9 @@
       <div id="view-haushalt" class="hidden"></div>
     </main>
     <nav id="sidebar-nav" class="tabbar">
-      <a data-view="zonen" class="act">Zonen</a>
-      <a data-view="fortschritt">Fortschritt</a>
-      <a data-view="haushalt">Haushalt</a>
+      <a data-view="zonen" class="act" data-i18n="navZones">Zonen</a>
+      <a data-view="fortschritt" data-i18n="navProgress">Fortschritt</a>
+      <a data-view="haushalt" data-i18n="navHousehold">Haushalt</a>
     </nav>
   </section>
 
