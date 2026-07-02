@@ -101,6 +101,18 @@ const SEED = [
     ["Aufräumen", 1], ["Staub wischen", 7], ["Boden saugen", 7],
     ["Sofa absaugen", 30], ["Fenster putzen", 90],
   ]},
+  { emoji: "🏋️", name: "Sportzimmer", tasks: [
+    ["Lüften", 1], ["Geräte & Matten abwischen", 7], ["Boden saugen", 7],
+    ["Boden wischen", 14], ["Equipment checken & sortieren", 30],
+  ]},
+  { emoji: "🚗", name: "Garage", tasks: [
+    ["Aufräumen & Werkzeug wegräumen", 14], ["Boden fegen", 30],
+    ["Regale ausmisten", 90], ["Entrümpeln", 90],
+  ]},
+  { emoji: "💻", name: "Büro", tasks: [
+    ["Schreibtisch aufräumen", 1], ["Papierkram ablegen", 7], ["Staub wischen", 7],
+    ["Boden saugen", 7], ["Bildschirm & Tastatur reinigen", 14], ["Kabel & Schubladen sortieren", 30],
+  ]},
 ];
 
 const INTERVALS = [[null, "einmalig"], [1, "täglich"], [3, "alle 3 Tage"], [4, "alle 4 Tage"],
