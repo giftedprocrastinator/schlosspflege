@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Schlosspflege</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body data-pal="A">
+
+  <!-- LOGIN -->
+  <section id="login-view" class="center hidden">
+    <div class="card auth">
+      <div class="brand"><span class="brand-dot"></span>Schlosspflege</div>
+      <p class="lede">Ordnung fürs Zuhause — Zone für Zone.</p>
+      <input id="login-email" type="email" placeholder="deine@email.de" autocomplete="email">
+      <button id="login-send" class="btn">Magic-Link senden</button>
+      <p id="login-msg" class="msg"></p>
+    </div>
+  </section>
+
+  <!-- HAUSHALT-SETUP (kein Haushalt vorhanden) -->
+  <section id="setup-view" class="center hidden">
+    <div class="card auth">
+      <div class="brand"><span class="brand-dot"></span>Schlosspflege</div>
+      <h2>Haushalt einrichten</h2>
+      <label>Neuen Haushalt anlegen</label>
+      <input id="setup-name" type="text" placeholder="z. B. „Unser Schloss“">
+      <button id="setup-create" class="btn">Anlegen</button>
+      <div class="or">oder</div>
+      <label>Einem Haushalt beitreten</label>
+      <input id="setup-code" type="text" placeholder="Invite-Code">
+      <button id="setup-join" class="btn ghost">Beitreten</button>
+      <p id="setup-msg" class="msg"></p>
+    </div>
+  </section>
+
+  <!-- APP -->
+  <section id="app-view" class="app hidden">
+    <aside class="side">
+      <div class="brand"><span class="brand-dot"></span>Schlosspflege</div>
+      <nav id="sidebar-nav">
+        <a data-view="zonen" class="act">Zonen-Plan</a>
+        <a data-view="fortschritt">Fortschritt</a>
+        <a data-view="haushalt">Haushalt</a>
+      </nav>
+      <div class="side-foot">
+        <span id="user-email" class="mut"></span>
+        <button id="logout" class="link">Abmelden</button>
+      </div>
+    </aside>
+    <main class="main">
+      <div id="view-zonen"></div>
+      <div id="view-fortschritt" class="hidden"></div>
+      <div id="view-haushalt" class="hidden"></div>
+    </main>
+  </section>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

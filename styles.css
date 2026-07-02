@@ -1,0 +1,64 @@
+/* Schlosspflege — Styles (Richtung 3 „Klare Struktur"), Farbwelt aus tokens.css */
+:root{
+  --ink:#12211F; --ink-soft:#4a5c58; --ink-mute:#657570;
+  --paper:#FAF9F6; --card:#FFFFFF; --line:#EAE7E0;
+  --ease:cubic-bezier(.2,.7,.3,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hanken Grotesk',system-ui,sans-serif;background:var(--paper);color:var(--ink);-webkit-font-smoothing:antialiased}
+.hidden{display:none!important}
+
+/* Zentrierte Auth-Screens */
+.center{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;
+  background-image:radial-gradient(700px 380px at 90% -8%,color-mix(in srgb,var(--g1) 22%,transparent),transparent 70%)}
+.card.auth{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:32px;width:min(420px,100%);
+  box-shadow:0 24px 60px -24px rgba(20,33,31,.28);display:flex;flex-direction:column;gap:12px}
+.card.auth h2{font-size:20px;margin-top:8px}
+.card.auth label{font-size:12px;font-weight:600;color:var(--ink-mute);margin-top:6px}
+.card.auth .or{text-align:center;color:var(--ink-mute);font-size:12px;margin:6px 0}
+.lede{color:var(--ink-soft);font-size:14px;margin-bottom:8px}
+input{font:inherit;padding:11px 13px;border:1px solid var(--line);border-radius:10px;background:#fff}
+input:focus{outline:2px solid color-mix(in srgb,var(--g2) 50%,transparent);border-color:transparent}
+.btn{font:inherit;font-weight:600;font-size:14px;border:0;background:var(--grad);color:#06201c;padding:11px 18px;border-radius:999px;cursor:pointer;transition:.2s var(--ease)}
+.btn.ghost{background:#fff;border:1px solid var(--ink);color:var(--ink)}
+.btn:hover{filter:brightness(1.03)}
+.link{background:none;border:0;color:var(--ink-mute);font:inherit;cursor:pointer;text-decoration:underline}
+.msg{font-size:13px;color:var(--ink-soft);min-height:18px}
+.brand{font-weight:700;font-size:18px;display:flex;align-items:center;gap:9px}
+.brand-dot{width:22px;height:22px;border-radius:7px;background:var(--grad)}
+.mut{color:var(--ink-mute);font-size:12px}
+
+/* App-Layout: Sidebar + Main */
+.app{display:flex;min-height:100vh}
+.side{width:220px;background:#f5f6f5;border-right:1px solid var(--line);padding:22px 16px;display:flex;flex-direction:column;gap:6px}
+.side nav{display:flex;flex-direction:column;gap:4px;margin-top:18px}
+.side nav a{font-size:14px;color:var(--ink-soft);padding:9px 12px;border-radius:9px;font-weight:500;cursor:pointer}
+.side nav a.act{background:#fff;color:var(--ink);font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.05)}
+.side nav a.act::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--g2);margin-right:8px;vertical-align:middle}
+.side-foot{margin-top:auto;display:flex;flex-direction:column;gap:6px}
+.main{flex:1;padding:32px 36px;max-width:920px}
+.kh{font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute);font-weight:600}
+h2.title{font-size:26px;font-weight:700;letter-spacing:-.01em;margin:6px 0 18px}
+
+/* Progress */
+.prog .lab{display:flex;justify-content:space-between;font-size:12px;color:var(--ink-soft);font-weight:600;margin-bottom:6px}
+.track{height:9px;border-radius:999px;background:#eceeec;overflow:hidden}
+.track i{display:block;height:100%;background:var(--grad);border-radius:999px;transition:width .3s var(--ease)}
+
+/* Zonen & Tasks */
+.zone{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:14px}
+.zone-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.zone-head .emoji{font-size:20px}
+.zone-head h3{font-size:16px;font-weight:700;flex:1}
+.zone-head .del{color:var(--ink-mute);cursor:pointer;font-size:13px}
+.task{display:flex;align-items:center;gap:11px;padding:8px 0;border-top:1px solid var(--line)}
+.task .ck{width:19px;height:19px;border-radius:6px;flex:none;display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;cursor:pointer;border:2px solid #d7dbd8}
+.task.done .ck{background:var(--grad);border-color:transparent}
+.task.done span{font-weight:600}
+.task span{flex:1;font-size:14px}
+.task.todo span{color:var(--ink-soft)}
+.task .del{color:var(--ink-mute);cursor:pointer;font-size:12px}
+.addrow{display:flex;gap:8px;margin-top:10px}
+.addrow input{flex:1}
+.addrow .btn{padding:9px 14px}
+.code-box{font-family:ui-monospace,monospace;font-size:18px;background:#f5f6f5;border:1px dashed var(--line);border-radius:10px;padding:12px 16px;text-align:center;letter-spacing:.08em}
