@@ -19,6 +19,33 @@ export function zoneProgress(tasks, now = Date.now()) {
   return { done, total, pct };
 }
 
+// Nächste Fälligkeit: nie erledigt = sofort (0); einmalig erledigt = nie wieder (Infinity).
+export function nextDueAt(task) {
+  if (!task.interval_days) return task.done ? Infinity : 0;
+  if (!task.done_at) return 0;
+  return new Date(task.done_at).getTime() + task.interval_days * DAY;
+}
+
+// Ende der aktuellen Kalenderwoche (Sonntag 24:00, lokale Zeit).
+export function weekEnd(now = Date.now()) {
+  const d = new Date(now);
+  const mondayOffset = (d.getDay() + 6) % 7; // Mo=0 … So=6
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + (7 - mondayOffset)).getTime();
+}
+
+// Wochen-Rechnung einer Zone: was ist jetzt fällig, was kommt bis Sonntag wieder?
+export function zoneWeek(tasks, now = Date.now()) {
+  const end = weekEnd(now);
+  let due = 0, returning = 0, nextBack = null;
+  for (const t of tasks) {
+    if (!taskIsDone(t, now)) { due++; continue; }
+    const nd = nextDueAt(t);
+    if (nd < end && (nextBack === null || nd < nextBack)) nextBack = nd;
+    if (nd < end) returning++;
+  }
+  return { due, returning, nextBack };
+}
+
 // Selbsttest (läuft nur unter Node, nicht im Browser).
 if (typeof window === "undefined") {
   const assert = (c, m) => { if (!c) { console.error("FAIL:", m); process.exit(1); } };
@@ -37,6 +64,21 @@ if (typeof window === "undefined") {
   assert(!taskIsDone({ interval_days: 7, done_at: "2026-06-25T12:00:00Z" }, now), "genau 7 Tage, Turnus 7 → wieder offen");
   r = zoneProgress([{ interval_days: 7, done_at: "2026-07-01T12:00:00Z" }, { done: false }], now);
   assert(r.done === 1 && r.total === 2 && r.pct === 50, "Turnus-Task zählt in Fortschritt");
+
+  // Wochen-Rechnung (lokale Zeit, Do 2026-07-02 mittags → Woche endet Mo 2026-07-06 00:00)
+  const thu = new Date(2026, 6, 2, 12).getTime();
+  assert(weekEnd(thu) === new Date(2026, 6, 6).getTime(), "Woche endet Montag 00:00");
+  assert(nextDueAt({ done: false }) === 0, "offene Einmal-Aufgabe → sofort fällig");
+  assert(nextDueAt({ done: true }) === Infinity, "erledigte Einmal-Aufgabe → nie wieder");
+  const dailyDoneToday = { interval_days: 1, done_at: new Date(2026, 6, 2, 10).toISOString() };
+  const weeklyOverdue = { interval_days: 7, done_at: new Date(2026, 5, 20).toISOString() };
+  const quarterlyFresh = { interval_days: 90, done_at: new Date(2026, 5, 25).toISOString() };
+  let w = zoneWeek([dailyDoneToday, weeklyOverdue, quarterlyFresh], thu);
+  assert(w.due === 1, "überfällige Wochen-Aufgabe → fällig");
+  assert(w.returning === 1, "tägliche kommt diese Woche wieder");
+  assert(w.nextBack === new Date(2026, 6, 3, 10).getTime(), "nächste Rückkehr = morgen");
+  w = zoneWeek([quarterlyFresh], thu);
+  assert(w.due === 0 && w.returning === 0 && w.nextBack === null, "frisch erledigt, langer Turnus → Ruhe");
 
   console.log("logic.js: alle Tests grün ✓");
 }

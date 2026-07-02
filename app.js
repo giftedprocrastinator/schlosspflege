@@ -1,6 +1,6 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
-import { zoneProgress, taskIsDone } from "./logic.js";
+import { zoneProgress, taskIsDone, nextDueAt, zoneWeek } from "./logic.js";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const $ = (id) => document.getElementById(id);
@@ -32,6 +32,8 @@ const STR = {
     household: "Haushalt", shareCode: "Teile diesen Code, damit jemand beitreten kann:",
     intervals: { "": "einmalig", 1: "täglich", 3: "alle 3 Tage", 4: "alle 4 Tage", 7: "wöchentlich", 14: "alle 2 Wochen", 30: "monatlich", 90: "alle 3 Monate" },
     everyNDays: (d) => `alle ${d} Tage`, toggleLabel: "EN",
+    nDue: (n) => `${n} fällig`, backOn: (d) => `ab ${d} wieder fällig`,
+    allDone: "alles erledigt ✨", againOn: (x) => `wieder ${x}`,
   },
   en: {
     lede: "A tidy home — zone by zone.", emailPh: "you@email.com",
@@ -58,6 +60,8 @@ const STR = {
     household: "Household", shareCode: "Share this code so someone can join:",
     intervals: { "": "one-time", 1: "daily", 3: "every 3 days", 4: "every 4 days", 7: "weekly", 14: "every 2 weeks", 30: "monthly", 90: "every 3 months" },
     everyNDays: (d) => `every ${d} days`, toggleLabel: "DE",
+    nDue: (n) => `${n} due`, backOn: (d) => `due again ${d}`,
+    allDone: "all done ✨", againOn: (x) => `again ${x}`,
   },
 };
 let lang = localStorage.getItem("lang") || "de";
@@ -234,6 +238,14 @@ function intervalLabel(days) {
   return STR[lang].intervals[days ?? ""] ?? t("everyNDays", days);
 }
 
+// Kurzes Datum für „wieder fällig": Wochentag innerhalb von 7 Tagen, sonst Datum.
+function dayLabel(ts) {
+  const locale = lang === "de" ? "de-DE" : "en-US";
+  const opts = ts - Date.now() < 7 * 86400000
+    ? { weekday: "short" } : { day: "numeric", month: "numeric" };
+  return new Date(ts).toLocaleDateString(locale, opts);
+}
+
 // Eine Zone aus einer Vorlage anlegen (inkl. Standardaufgaben, in der aktiven Sprache) — mehrfach möglich.
 async function addZoneFromTemplate(tpl) {
   const { data: zone } = await supabase.from("zones")
@@ -269,14 +281,20 @@ async function renderZonen() {
     <h2 class="title">${t("zonePlan")}</h2>
     ${zones.length === 0 ? `<p class="mut" style="margin-bottom:10px">${t("noZones")}</p>` : ""}
     <div class="zone-grid">${zones.map(z => {
-      const p = zoneProgress(tasks.filter(t => t.zone_id === z.id));
-      // Ampel-Farbe nach Fortschritt: rosé = viel offen, sand = mittendrin, mint = fast fertig.
-      const cls = p.total === 0 ? "" : p.pct < 35 ? "low" : p.pct < 70 ? "mid" : "high";
+      const zt = tasks.filter(t => t.zone_id === z.id);
+      const p = zoneProgress(zt);
+      const w = zoneWeek(zt);
+      // Ampel nach Fälligkeit: rosé = jetzt fällig, sand = kommt bis So. wieder, mint = Ruhe.
+      const cls = p.total === 0 ? "" : w.due > 0 ? "low" : w.returning > 0 ? "mid" : "high";
+      const sub = p.total === 0 ? t("noTasksTile")
+        : w.due > 0 ? t("nDue", w.due)
+        : w.returning > 0 ? t("backOn", dayLabel(w.nextBack))
+        : t("allDone");
       return `<button class="tile ${cls}" data-open="${z.id}">
         <span class="tile-emoji">${z.emoji}</span>
         <span class="tile-name">${z.name}</span>
         <div class="track"><i style="width:${p.pct}%"></i></div>
-        <span class="tile-sub">${p.total ? t("doneOf", p.done, p.total) + (p.pct === 100 ? " ✨" : "") : t("noTasksTile")}</span>
+        <span class="tile-sub">${sub}</span>
       </button>`;
     }).join("")}</div>
     <div class="addrow" style="margin-top:18px">
@@ -309,10 +327,16 @@ function renderZoneDetail(el, z, zt) {
     <div class="prog"><div class="lab"><span>${t("doneOf", p.done, p.total)}</span><span>${p.pct} %</span></div>
       <div class="track"><i style="width:${p.pct}%"></i></div></div>
     <div class="zone" style="margin-top:14px">
-      ${zt.map(task => { const isDone = taskIsDone(task);
+      ${[...zt].sort((a, b) => taskIsDone(a) - taskIsDone(b)).map(task => {
+        const isDone = taskIsDone(task);
+        // Offene Aufgaben zeigen den Turnus, erledigte wann sie wiederkommen.
+        const nd = nextDueAt(task);
+        const badge = !task.interval_days ? ""
+          : isDone ? ` <em class="turnus">${t("againOn", dayLabel(nd))}</em>`
+          : ` <em class="turnus">${intervalLabel(task.interval_days)}</em>`;
         return `<div class="task ${isDone ? "done" : "todo"}">
         <span class="ck" data-toggle="${task.id}" data-done="${isDone}">${isDone ? "✓" : ""}</span>
-        <span>${task.title}${task.interval_days ? ` <em class="turnus">${intervalLabel(task.interval_days)}</em>` : ""}</span>
+        <span>${task.title}${badge}</span>
         <span class="del" data-deltask="${task.id}">✕</span></div>`; }).join("") || `<p class='mut'>${t("noTasks")}</p>`}
       <div class="addrow"><input placeholder="${t("taskPh")}" data-newtask="${z.id}">
         <select data-newinterval="${z.id}">${intervalOptions}</select>
