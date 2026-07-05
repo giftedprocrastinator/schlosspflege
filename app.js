@@ -16,7 +16,9 @@ const STR = {
   de: {
     lede: "Ordnung fürs Zuhause — Zone für Zone.", emailPh: "deine@email.de",
     sendLink: "Magic-Link senden", enterEmail: "Bitte E-Mail eingeben.", sending: "Sende …",
-    sent: "Link gesendet — prüf dein Postfach ✉️", sendFail: "Versand fehlgeschlagen: ",
+    sent: "Link gesendet — klick ihn an oder gib den Code aus der Mail ein ✉️", sendFail: "Versand fehlgeschlagen: ",
+    otpPh: "6-stelliger Code aus der Mail", otpVerify: "Mit Code anmelden",
+    otpEnter: "Bitte E-Mail und Code eingeben.", otpFail: "Anmeldung fehlgeschlagen: ",
     unknownErr: "unbekannter Fehler (E-Mail-Einstellungen prüfen)",
     setupTitle: "Haushalt einrichten", createLabel: "Neuen Haushalt anlegen",
     namePh: "z. B. „Unser Schloss“", create: "Anlegen", or: "oder",
@@ -50,7 +52,9 @@ const STR = {
   en: {
     lede: "A tidy home — zone by zone.", emailPh: "you@email.com",
     sendLink: "Send magic link", enterEmail: "Please enter your email.", sending: "Sending …",
-    sent: "Link sent — check your inbox ✉️", sendFail: "Sending failed: ",
+    sent: "Link sent — click it or enter the code from the email ✉️", sendFail: "Sending failed: ",
+    otpPh: "6-digit code from the email", otpVerify: "Sign in with code",
+    otpEnter: "Please enter your email and the code.", otpFail: "Sign-in failed: ",
     unknownErr: "unknown error (check email settings)",
     setupTitle: "Set up your household", createLabel: "Create a new household",
     namePh: "e.g. “Our Castle”", create: "Create", or: "or",
@@ -153,6 +157,20 @@ $("login-send").addEventListener("click", async () => {
   $("login-msg").textContent = error
     ? (t("sendFail") + (error.message || error.code || t("unknownErr")))
     : t("sent");
+  if (!error) $("login-code-row").classList.remove("hidden");
+});
+
+// OTP-Fallback: der 6-stellige Code aus derselben Mail — funktioniert auch in der
+// iOS-Home-Screen-App, wo der Magic-Link in Safari (getrennte Session) landen würde.
+$("login-verify").addEventListener("click", async () => {
+  const email = $("login-email").value.trim();
+  const code = $("login-code").value.trim();
+  if (!email || !code) { $("login-msg").textContent = t("otpEnter"); return; }
+  $("login-verify").disabled = true;
+  const { error } = await supabase.auth.verifyOtp({ email, token: code, type: "email" });
+  $("login-verify").disabled = false;
+  if (error) $("login-msg").textContent = t("otpFail") + error.message;
+  // Erfolg: SIGNED_IN-Event stößt route() an.
 });
 
 $("menu-admin").addEventListener("click", () => {

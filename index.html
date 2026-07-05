@@ -26,6 +26,11 @@
       <p class="lede" data-i18n="lede">Ordnung fürs Zuhause — Zone für Zone.</p>
       <input id="login-email" type="email" placeholder="deine@email.de" autocomplete="email" data-i18n-ph="emailPh">
       <button id="login-send" class="btn" data-i18n="sendLink">Magic-Link senden</button>
+      <div id="login-code-row" class="hidden">
+        <div class="or" data-i18n="or">oder</div>
+        <input id="login-code" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="6-stelliger Code aus der Mail" data-i18n-ph="otpPh">
+        <button id="login-verify" class="btn ghost" data-i18n="otpVerify">Mit Code anmelden</button>
+      </div>
       <p id="login-msg" class="msg"></p>
     </div>
   </section>

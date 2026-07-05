@@ -2,13 +2,20 @@
 
 const DAY = 86400000;
 
+// Lokaler Tagesanfang — Turnus rechnet in Kalendertagen, nicht in 24h-Fenstern:
+// „täglich" um 22:00 abgehakt ist am nächsten Morgen wieder fällig, nicht erst 22:00.
+function dayStart(ts) {
+  const d = new Date(ts);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+}
+
 // Ist eine Aufgabe aktuell erledigt?
-// Ohne Turnus: das done-Flag. Mit Turnus (interval_days): erledigt, solange
-// die letzte Erledigung jünger als der Turnus ist — danach wieder offen.
+// Ohne Turnus: das done-Flag. Mit Turnus (interval_days): erledigt, bis
+// interval_days Kalendertage nach dem Erledigungs-Tag vergangen sind.
 export function taskIsDone(task, now = Date.now()) {
   if (!task.interval_days) return !!task.done;
   if (!task.done_at) return false;
-  return now - new Date(task.done_at).getTime() < task.interval_days * DAY;
+  return now < nextDueAt(task);
 }
 
 // Fortschritt einer Task-Liste: erledigt / gesamt / Prozent (gerundet).
@@ -20,10 +27,11 @@ export function zoneProgress(tasks, now = Date.now()) {
 }
 
 // Nächste Fälligkeit: nie erledigt = sofort (0); einmalig erledigt = nie wieder (Infinity).
+// Mit Turnus: Tagesanfang des Erledigungs-Tags + Turnus (= Mitternacht des Fälligkeits-Tags).
 export function nextDueAt(task) {
   if (!task.interval_days) return task.done ? Infinity : 0;
   if (!task.done_at) return 0;
-  return new Date(task.done_at).getTime() + task.interval_days * DAY;
+  return dayStart(new Date(task.done_at).getTime()) + task.interval_days * DAY;
 }
 
 // Ende der aktuellen Kalenderwoche (Sonntag 24:00, lokale Zeit).
@@ -75,7 +83,10 @@ if (typeof window === "undefined") {
   let w = zoneWeek([dailyDoneToday, weeklyOverdue, quarterlyFresh], thu);
   assert(w.due === 1, "überfällige Wochen-Aufgabe → fällig");
   assert(w.returning === 1, "tägliche kommt diese Woche wieder");
-  assert(w.nextBack === new Date(2026, 6, 3, 10).getTime(), "nächste Rückkehr = morgen");
+  assert(w.nextBack === new Date(2026, 6, 3).getTime(), "nächste Rückkehr = morgen 00:00 (Kalendertag)");
+  const lateNight = { interval_days: 1, done_at: new Date(2026, 6, 1, 22).toISOString() };
+  assert(taskIsDone(lateNight, new Date(2026, 6, 1, 23).getTime()), "abends abgehakt → am selben Tag erledigt");
+  assert(!taskIsDone(lateNight, new Date(2026, 6, 2, 0, 30).getTime()), "täglich → am nächsten Kalendertag wieder offen");
   w = zoneWeek([quarterlyFresh], thu);
   assert(w.due === 0 && w.returning === 0 && w.nextBack === null, "frisch erledigt, langer Turnus → Ruhe");
 

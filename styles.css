@@ -19,6 +19,7 @@ body{font-family:'Hanken Grotesk',system-ui,sans-serif;background:var(--paper);c
 .card.auth h2{font-size:20px;margin-top:8px}
 .card.auth label{font-size:12px;font-weight:600;color:var(--ink-mute);margin-top:6px}
 .card.auth .or{text-align:center;color:var(--ink-mute);font-size:12px;margin:6px 0}
+#login-code-row{display:flex;flex-direction:column;gap:12px}
 .lede{color:var(--ink-soft);font-size:14px;margin-bottom:8px}
 input{font:inherit;padding:11px 13px;border:1px solid var(--line);border-radius:10px;background:#fff}
 input:focus{outline:2px solid color-mix(in srgb,var(--g2) 50%,transparent);border-color:transparent}
