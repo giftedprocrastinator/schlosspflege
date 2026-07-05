@@ -20,6 +20,7 @@ const STR = {
     otpPh: "6-stelliger Code aus der Mail", otpVerify: "Mit Code anmelden",
     otpEnter: "Bitte E-Mail und Code eingeben.", otpFail: "Anmeldung fehlgeschlagen: ",
     unknownErr: "unbekannter Fehler (E-Mail-Einstellungen prüfen)",
+    unknownMail: "Diese E-Mail ist nicht freigeschaltet.",
     setupTitle: "Haushalt einrichten", createLabel: "Neuen Haushalt anlegen",
     namePh: "z. B. „Unser Schloss“", create: "Anlegen", or: "oder",
     joinLabel: "Einem Haushalt beitreten", codePh: "Invite-Code", join: "Beitreten",
@@ -66,6 +67,7 @@ const STR = {
     otpPh: "6-digit code from the email", otpVerify: "Sign in with code",
     otpEnter: "Please enter your email and the code.", otpFail: "Sign-in failed: ",
     unknownErr: "unknown error (check email settings)",
+    unknownMail: "This email isn't registered.",
     setupTitle: "Set up your household", createLabel: "Create a new household",
     namePh: "e.g. “Our Castle”", create: "Create", or: "or",
     joinLabel: "Join a household", codePh: "Invite code", join: "Join",
@@ -203,10 +205,12 @@ $("login-send").addEventListener("click", async () => {
   if (!email) { $("login-msg").textContent = t("enterEmail"); return; }
   $("login-msg").textContent = t("sending");
   const { error } = await supabase.auth.signInWithOtp({
-    email, options: { emailRedirectTo: window.location.href }
+    // shouldCreateUser:false — Login nur für bestehende Konten, kein offener Signup.
+    email, options: { emailRedirectTo: window.location.href, shouldCreateUser: false }
   });
   $("login-msg").textContent = error
-    ? (t("sendFail") + (error.message || error.code || t("unknownErr")))
+    ? (error.code === "otp_disabled" ? t("unknownMail")
+      : t("sendFail") + (error.message || error.code || t("unknownErr")))
     : t("sent");
   if (!error) $("login-code-row").classList.remove("hidden");
 });
