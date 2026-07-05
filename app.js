@@ -51,6 +51,11 @@ const STR = {
     confirmRmMember: (e) => `${e} aus dem Haushalt entfernen?`,
     renameHhPrompt: "Haushalt umbenennen:",
     adminNoMembers: "keine Mitglieder",
+    weekAll: "Alle", weekMine: "Nur ich", dueNow: "jetzt fällig",
+    weekEmpty: "Diese Woche ist alles erledigt ✨",
+    membersH: "Mitglieder", meSuffix: "du", editMe: "Name/Emoji ändern",
+    mePrompt: "Dein Anzeigename (Emoji voranstellen möglich):",
+    nobody: "niemand", assignTitle: (n) => `Zugeordnet: ${n} — tippen zum Wechseln`,
     loadFail: "Verbindungsfehler — bitte neu laden.",
   },
   en: {
@@ -91,6 +96,11 @@ const STR = {
     confirmRmMember: (e) => `Remove ${e} from the household?`,
     renameHhPrompt: "Rename household:",
     adminNoMembers: "no members",
+    weekAll: "All", weekMine: "Just me", dueNow: "due now",
+    weekEmpty: "All done for this week ✨",
+    membersH: "Members", meSuffix: "you", editMe: "Change name/emoji",
+    mePrompt: "Your display name (you can prefix an emoji):",
+    nobody: "nobody", assignTitle: (n) => `Assigned: ${n} — tap to switch`,
     loadFail: "Connection error — please reload.",
   },
 };
@@ -122,6 +132,24 @@ function showScreen(id) {
 
 let currentHousehold = null; // { id, name, invite_code }
 let currentUserId = null;
+let hhMembers = []; // Mitglieder des aktiven Haushalts: { user_id, display_name, emoji }
+
+const memberOf = (uid) => hhMembers.find(m => m.user_id === uid) || null;
+const memberLabel = (uid) => {
+  const m = memberOf(uid);
+  return m ? `${m.emoji ? m.emoji + " " : ""}${m.display_name || "?"}` : t("nobody");
+};
+// Chip-Anzeige: Emoji des Mitglieds, sonst Initiale; ohne Zuordnung ein stilles ＋.
+const memberChip = (uid) => {
+  const m = memberOf(uid);
+  return m ? (m.emoji || (m.display_name || "?").slice(0, 1).toUpperCase()) : "＋";
+};
+// Tipp-Zyklus für Zuordnungen: niemand → Mitglied 1 → Mitglied 2 → … → niemand.
+const nextAssignee = (cur) => {
+  const ids = hhMembers.map(m => m.user_id);
+  const i = ids.indexOf(cur);
+  return cur == null || i === -1 ? (ids[0] ?? null) : (ids[i + 1] ?? null);
+};
 
 async function route() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -140,6 +168,16 @@ async function route() {
   if (members.length === 0) { showScreen("setup-view"); return; }
   currentHousehold = members[0].households;
   $("hh-name").textContent = currentHousehold.name;
+  // Mitglieder für Zuordnungen/Anzeige laden; eigenen Anzeigenamen ggf. initialisieren.
+  hhMembers = ok(await supabase.from("household_members")
+    .select("user_id, display_name, emoji")
+    .eq("household_id", currentHousehold.id).order("joined_at")) || [];
+  const me = hhMembers.find(m => m.user_id === currentUserId);
+  if (me && !me.display_name) {
+    me.display_name = session.user.email.split("@")[0];
+    ok(await supabase.from("household_members").update({ display_name: me.display_name })
+      .eq("household_id", currentHousehold.id).eq("user_id", currentUserId));
+  }
   // Admin-Menüpunkt nur fürs Admin-Konto — die echte Prüfung macht admin_overview() serverseitig.
   const { data: isAdmin } = await supabase.rpc("is_admin");
   $("menu-admin").classList.toggle("hidden", !isAdmin);
@@ -342,6 +380,7 @@ async function loadZonen() {
 }
 
 let openZoneId = null; // gerade geöffnete Zone (null = Kachel-Übersicht)
+let weekFilter = localStorage.getItem("weekFilter") || "all"; // Wochenliste: "all" | "mine"
 
 async function renderZonen() {
   const data = await loadZonen();
@@ -351,9 +390,27 @@ async function renderZonen() {
   const open = zones.find(z => z.id === openZoneId);
   if (open) { renderZoneDetail(el, open, tasks.filter(t => t.zone_id === open.id)); return; }
   openZoneId = null;
+  // Wochenliste: jetzt Fälliges + alles, was bis Sonntag wieder fällig wird (Woche = Mo–So, logic.js weekEnd).
+  const end = weekEnd();
+  const zoneById = Object.fromEntries(zones.map(z => [z.id, z]));
+  const assigneeOf = (task) => task.assigned_to ?? zoneById[task.zone_id]?.assigned_to ?? null;
+  let week = tasks
+    .map(task => ({ task, zone: zoneById[task.zone_id], due: !taskIsDone(task), back: nextDueAt(task) }))
+    .filter(x => x.zone && (x.due || (x.task.interval_days && x.back < end)))
+    .sort((a, b) => (a.due === b.due) ? a.back - b.back : (a.due ? -1 : 1));
+  if (weekFilter === "mine") week = week.filter(x => assigneeOf(x.task) === currentUserId);
   el.innerHTML = `
     <div class="kh">${t("thisWeek")}</div>
-    <h2 class="title">${t("zonePlan")}</h2>
+    <div class="weekbar">
+      <button class="link ${weekFilter === "all" ? "act" : ""}" data-wf="all">${t("weekAll")}</button>
+      <button class="link ${weekFilter === "mine" ? "act" : ""}" data-wf="mine">${t("weekMine")}</button>
+    </div>
+    ${week.map(x => `<div class="task ${x.due ? "todo" : "done"}">
+      <span class="ck" data-toggle="${x.task.id}" data-done="${!x.due}">${x.due ? "" : "✓"}</span>
+      <span>${esc(x.zone.emoji)} ${esc(x.task.title)}${assigneeOf(x.task) ? ` <em class="turnus">${esc(memberLabel(assigneeOf(x.task)))}</em>` : ""}</span>
+      <em class="turnus">${x.due ? t("dueNow") : t("againOn", dayLabel(x.back))}</em>
+    </div>`).join("") || `<p class="mut">${t("weekEmpty")}</p>`}
+    <h2 class="title" style="margin-top:20px">${t("zonePlan")}</h2>
     ${zones.length === 0 ? `<p class="mut" style="margin-bottom:10px">${t("noZones")}</p>` : ""}
     <div class="zone-grid">${zones.map(z => {
       const zt = tasks.filter(t => t.zone_id === z.id);
@@ -383,6 +440,13 @@ async function renderZonen() {
       <input id="new-zone" placeholder="${t("zonePh")}">
     </div>`;
   el.querySelectorAll("[data-open]").forEach(b => b.onclick = () => { openZoneId = b.dataset.open; renderZonen(); });
+  el.querySelectorAll("[data-wf]").forEach(b => b.onclick = () => {
+    weekFilter = b.dataset.wf;
+    localStorage.setItem("weekFilter", weekFilter);
+    renderZonen();
+  });
+  el.querySelectorAll("[data-toggle]").forEach(c => c.onclick = () =>
+    toggleTask(c.dataset.toggle, c.dataset.done !== "true"));
   const tpl = $("new-zone-tpl");
   tpl.onchange = () => $("custom-zone-row").classList.toggle("hidden", tpl.value !== "custom");
   $("add-zone").onclick = () => {
@@ -398,6 +462,7 @@ function renderZoneDetail(el, z, zt) {
     <button class="link" id="zone-back">${t("allZones")}</button>
     <div class="zone-head" style="margin:14px 0 10px"><span class="emoji">${esc(z.emoji)}</span>
       <h3 data-rename="${z.id}" title="${t("renameHint")}">${esc(z.name)}</h3>
+      <button class="who" data-assignzone title="${t("assignTitle", memberLabel(z.assigned_to))}">${esc(memberChip(z.assigned_to))}</button>
       <span class="del" data-delzone="${z.id}">${t("del")}</span></div>
     <div class="prog"><div class="lab"><span>${t("doneOf", p.done, p.total)}</span><span>${p.pct} %</span></div>
       <div class="track"><i style="width:${p.pct}%"></i></div></div>
@@ -412,6 +477,7 @@ function renderZoneDetail(el, z, zt) {
         return `<div class="task ${isDone ? "done" : "todo"}">
         <span class="ck" data-toggle="${task.id}" data-done="${isDone}">${isDone ? "✓" : ""}</span>
         <span>${esc(task.title)}${badge}</span>
+        <button class="who" data-assigntask="${task.id}" data-cur="${task.assigned_to ?? ""}" title="${t("assignTitle", memberLabel(task.assigned_to))}">${esc(memberChip(task.assigned_to))}</button>
         <span class="del" data-deltask="${task.id}">✕</span></div>`; }).join("") || `<p class='mut'>${t("noTasks")}</p>`}
       <div class="addrow"><input placeholder="${t("taskPh")}" data-newtask="${z.id}">
         <select data-newinterval="${z.id}">${intervalOptions}</select>
@@ -420,6 +486,14 @@ function renderZoneDetail(el, z, zt) {
   $("zone-back").onclick = () => { openZoneId = null; renderZonen(); };
   el.querySelector("[data-rename]").onclick = () => renameZone(z.id, z.name);
   el.querySelector("[data-delzone]").onclick = () => delZone(z.id);
+  el.querySelector("[data-assignzone]").onclick = async () => {
+    if (!ok(await supabase.from("zones").update({ assigned_to: nextAssignee(z.assigned_to) }).eq("id", z.id))) return;
+    renderZonen();
+  };
+  el.querySelectorAll("[data-assigntask]").forEach(b => b.onclick = async () => {
+    if (!ok(await supabase.from("tasks").update({ assigned_to: nextAssignee(b.dataset.cur || null) }).eq("id", b.dataset.assigntask))) return;
+    renderZonen();
+  });
   el.querySelectorAll("[data-toggle]").forEach(c => c.onclick = () =>
     toggleTask(c.dataset.toggle, c.dataset.done !== "true"));
   el.querySelectorAll("[data-deltask]").forEach(x => x.onclick = () => delTask(x.dataset.deltask));
@@ -492,11 +566,29 @@ async function renderFortschritt() {
 
 // --- Haushalt ---
 async function renderHaushalt() {
-  $("view-haushalt").innerHTML = `
+  const el = $("view-haushalt");
+  el.innerHTML = `
     <div class="kh">${t("household")}</div>
     <h2 class="title">${esc(currentHousehold.name)}</h2>
     <p class="mut">${t("shareCode")}</p>
-    <div class="code-box">${esc(currentHousehold.invite_code)}</div>`;
+    <div class="code-box">${esc(currentHousehold.invite_code)}</div>
+    <h3 style="margin:18px 0 8px">${t("membersH")}</h3>
+    ${hhMembers.map(m => `<div class="task todo">
+      <span>${m.emoji ? esc(m.emoji) + " " : ""}${esc(m.display_name || "?")}${m.user_id === currentUserId ? ` <em class="turnus">${t("meSuffix")}</em>` : ""}</span>
+      ${m.user_id === currentUserId ? `<span class="del" data-editme title="${t("editMe")}">✎</span>` : ""}
+    </div>`).join("")}`;
+  const btn = el.querySelector("[data-editme]");
+  if (btn) btn.onclick = async () => {
+    const me = hhMembers.find(m => m.user_id === currentUserId);
+    const text = prompt(t("mePrompt"), `${me.emoji ? me.emoji + " " : ""}${me.display_name || ""}`);
+    if (!text || !text.trim()) return;
+    const m = text.trim().match(/^(\p{Extended_Pictographic})\s*(.*)$/u);
+    const patch = m ? { emoji: m[1], display_name: m[2] || me.display_name } : { emoji: null, display_name: text.trim() };
+    if (!ok(await supabase.from("household_members").update(patch)
+      .eq("household_id", currentHousehold.id).eq("user_id", currentUserId))) return;
+    Object.assign(me, patch);
+    renderHaushalt();
+  };
 }
 
 // --- Admin (Konten & Haushalte verwalten; Rechte prüfen admin_overview() + RLS serverseitig) ---
