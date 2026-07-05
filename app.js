@@ -37,6 +37,11 @@ const STR = {
     everyNDays: (d) => `alle ${d} Tage`, toggleLabel: "EN",
     nDue: (n) => `${n} fällig`, backOn: (d) => `ab ${d} wieder fällig`,
     allDone: "alles erledigt ✨", againOn: (x) => `wieder ${x}`,
+    navAdmin: "Admin", adminTitle: "Überblick",
+    adminSummary: (u, h) => `${u} Konten · ${h} Haushalte`,
+    adminLine: (z, d, tot) => `${z} Zonen · ${d}/${tot} Aufgaben erledigt`,
+    adminLast: (x) => `zuletzt erledigt: ${x}`, adminLastNever: "noch nichts erledigt",
+    adminNoMembers: "keine Mitglieder", adminFail: "Kein Zugriff: ",
   },
   en: {
     lede: "A tidy home — zone by zone.", emailPh: "you@email.com",
@@ -65,6 +70,11 @@ const STR = {
     everyNDays: (d) => `every ${d} days`, toggleLabel: "DE",
     nDue: (n) => `${n} due`, backOn: (d) => `due again ${d}`,
     allDone: "all done ✨", againOn: (x) => `again ${x}`,
+    navAdmin: "Admin", adminTitle: "Overview",
+    adminSummary: (u, h) => `${u} accounts · ${h} households`,
+    adminLine: (z, d, tot) => `${z} zones · ${d}/${tot} tasks done`,
+    adminLast: (x) => `last completed: ${x}`, adminLastNever: "nothing completed yet",
+    adminNoMembers: "no members", adminFail: "No access: ",
   },
 };
 let lang = localStorage.getItem("lang") || "de";
@@ -107,6 +117,9 @@ async function route() {
   if (!members || members.length === 0) { showScreen("setup-view"); return; }
   currentHousehold = members[0].households;
   $("hh-name").textContent = currentHousehold.name;
+  // Admin-Menüpunkt nur fürs Admin-Konto — die echte Prüfung macht admin_overview() serverseitig.
+  const { data: isAdmin } = await supabase.rpc("is_admin");
+  $("menu-admin").classList.toggle("hidden", !isAdmin);
   showScreen("app-view");
   showView("zonen");
 }
@@ -132,6 +145,12 @@ $("login-send").addEventListener("click", async () => {
   $("login-msg").textContent = error
     ? (t("sendFail") + (error.message || error.code || t("unknownErr")))
     : t("sent");
+});
+
+$("menu-admin").addEventListener("click", () => {
+  $("menu").classList.add("hidden");
+  document.querySelectorAll("#sidebar-nav a").forEach(x => x.classList.remove("act"));
+  showView("admin");
 });
 
 $("logout").addEventListener("click", async () => {
@@ -168,11 +187,12 @@ $("sidebar-nav").addEventListener("click", (e) => {
 let currentView = "zonen";
 function showView(name) {
   currentView = name;
-  for (const v of ["zonen", "fortschritt", "haushalt"])
+  for (const v of ["zonen", "fortschritt", "haushalt", "admin"])
     $("view-" + v).classList.toggle("hidden", v !== name);
   if (name === "zonen") renderZonen();
   if (name === "fortschritt") renderFortschritt();
   if (name === "haushalt") renderHaushalt();
+  if (name === "admin") renderAdmin();
 }
 
 // Reagiert auf Login/Logout (auch nach Magic-Link-Redirect). setTimeout entkoppelt
@@ -296,7 +316,7 @@ async function renderZonen() {
         : w.returning > 0 ? t("backOn", dayLabel(w.nextBack))
         : t("allDone");
       return `<button class="tile ${cls}" data-open="${z.id}">
-        <span class="tile-emoji">${z.emoji}</span>
+        <span class="tile-emoji">${esc(z.emoji)}</span>
         <span class="tile-name">${esc(z.name)}</span>
         <div class="track"><i style="width:${p.pct}%"></i></div>
         <span class="tile-sub">${sub}</span>
@@ -326,7 +346,7 @@ function renderZoneDetail(el, z, zt) {
   const intervalOptions = INTERVAL_DAYS.map(d => `<option value="${d ?? ""}">${intervalLabel(d)}</option>`).join("");
   el.innerHTML = `
     <button class="link" id="zone-back">${t("allZones")}</button>
-    <div class="zone-head" style="margin:14px 0 10px"><span class="emoji">${z.emoji}</span>
+    <div class="zone-head" style="margin:14px 0 10px"><span class="emoji">${esc(z.emoji)}</span>
       <h3 data-rename="${z.id}" title="${t("renameHint")}">${esc(z.name)}</h3>
       <span class="del" data-delzone="${z.id}">${t("del")}</span></div>
     <div class="prog"><div class="lab"><span>${t("doneOf", p.done, p.total)}</span><span>${p.pct} %</span></div>
@@ -407,7 +427,7 @@ async function renderFortschritt() {
   const rows = zones.map(z => {
     const p = zoneProgress(tasks.filter(t => t.zone_id === z.id));
     return `<div class="prog" style="margin:14px 0">
-      <div class="lab"><span>${z.emoji} ${esc(z.name)}</span><span>${p.done}/${p.total} · ${p.pct} %</span></div>
+      <div class="lab"><span>${esc(z.emoji)} ${esc(z.name)}</span><span>${p.done}/${p.total} · ${p.pct} %</span></div>
       <div class="track"><i style="width:${p.pct}%"></i></div></div>`;
   }).join("");
   $("view-fortschritt").innerHTML = `
@@ -425,4 +445,22 @@ async function renderHaushalt() {
     <h2 class="title">${esc(currentHousehold.name)}</h2>
     <p class="mut">${t("shareCode")}</p>
     <div class="code-box">${esc(currentHousehold.invite_code)}</div>`;
+}
+
+// --- Admin (Überblick über alle Haushalte; Zugriff prüft admin_overview() serverseitig) ---
+async function renderAdmin() {
+  const { data, error } = await supabase.rpc("admin_overview");
+  if (error) { $("view-admin").innerHTML = `<p class="mut">${t("adminFail")}${esc(error.message)}</p>`; return; }
+  const locale = lang === "de" ? "de-DE" : "en-US";
+  const fd = (x) => new Date(x).toLocaleDateString(locale, { day: "numeric", month: "numeric", year: "numeric" });
+  const hs = data.households || [];
+  $("view-admin").innerHTML = `
+    <div class="kh">${t("navAdmin")}</div>
+    <h2 class="title">${t("adminTitle")}</h2>
+    <p class="mut">${t("adminSummary", data.users, hs.length)}</p>
+    ${hs.map(h => `<div class="prog" style="margin:16px 0">
+      <div class="lab"><span>${esc(h.name)}</span><span>${fd(h.created_at)}</span></div>
+      <p class="mut" style="margin:2px 0">${h.members.length ? h.members.map(esc).join(" · ") : t("adminNoMembers")}</p>
+      <p class="mut" style="margin:2px 0">${t("adminLine", h.zones, h.tasks_done, h.tasks)} — ${h.last_done ? t("adminLast", fd(h.last_done)) : t("adminLastNever")}</p>
+    </div>`).join("")}`;
 }
