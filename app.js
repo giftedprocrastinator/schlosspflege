@@ -44,9 +44,13 @@ const STR = {
     allDone: "alles erledigt ✨", againOn: (x) => `wieder ${x}`,
     navAdmin: "Admin", adminTitle: "Überblick",
     adminSummary: (u, h) => `${u} Konten · ${h} Haushalte`,
-    adminLine: (z, d, tot) => `${z} Zonen · ${d}/${tot} Aufgaben erledigt`,
-    adminLast: (x) => `zuletzt erledigt: ${x}`, adminLastNever: "noch nichts erledigt",
-    adminNoMembers: "keine Mitglieder", adminFail: "Kein Zugriff: ",
+    adminUsersH: "Konten", adminHhH: "Haushalte",
+    adminSince: (d) => `seit ${d}`, adminInvite: (c) => `Invite-Code: ${c}`,
+    confirmDelUser: (e) => `Konto „${e}" endgültig löschen?`,
+    confirmDelHh: (n) => `Haushalt „${n}" samt Zonen und Aufgaben löschen?`,
+    confirmRmMember: (e) => `${e} aus dem Haushalt entfernen?`,
+    renameHhPrompt: "Haushalt umbenennen:",
+    adminNoMembers: "keine Mitglieder",
     loadFail: "Verbindungsfehler — bitte neu laden.",
   },
   en: {
@@ -80,9 +84,13 @@ const STR = {
     allDone: "all done ✨", againOn: (x) => `again ${x}`,
     navAdmin: "Admin", adminTitle: "Overview",
     adminSummary: (u, h) => `${u} accounts · ${h} households`,
-    adminLine: (z, d, tot) => `${z} zones · ${d}/${tot} tasks done`,
-    adminLast: (x) => `last completed: ${x}`, adminLastNever: "nothing completed yet",
-    adminNoMembers: "no members", adminFail: "No access: ",
+    adminUsersH: "Accounts", adminHhH: "Households",
+    adminSince: (d) => `since ${d}`, adminInvite: (c) => `Invite code: ${c}`,
+    confirmDelUser: (e) => `Permanently delete account “${e}”?`,
+    confirmDelHh: (n) => `Delete household “${n}” including zones and tasks?`,
+    confirmRmMember: (e) => `Remove ${e} from the household?`,
+    renameHhPrompt: "Rename household:",
+    adminNoMembers: "no members",
     loadFail: "Connection error — please reload.",
   },
 };
@@ -113,16 +121,19 @@ function showScreen(id) {
 }
 
 let currentHousehold = null; // { id, name, invite_code }
+let currentUserId = null;
 
 async function route() {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) { showScreen("login-view"); return; }
   $("user-email").textContent = session.user.email;
+  currentUserId = session.user.id;
   // Mitgliedschaft laden. Bei Netzfehler NICHT in den Setup-Screen fallen —
   // sonst legt man dort versehentlich einen zweiten Haushalt an.
   const { data: members, error } = await supabase
     .from("household_members")
     .select("household_id, households(id,name,invite_code)")
+    .eq("user_id", session.user.id) // Admin-RLS sieht alle Zeilen — explizit die eigene wählen
     .order("joined_at")
     .limit(1);
   if (error) { showScreen("login-view"); $("login-msg").textContent = t("loadFail"); return; }
@@ -348,8 +359,8 @@ async function renderZonen() {
       const zt = tasks.filter(t => t.zone_id === z.id);
       const p = zoneProgress(zt);
       const w = zoneWeek(zt);
-      // Ampel nach Fälligkeit: rosé = jetzt fällig, sand = kommt bis So. wieder, mint = Ruhe.
-      const cls = p.total === 0 ? "" : w.due > 0 ? "low" : w.returning > 0 ? "mid" : "high";
+      // Ampel nach Fortschritt (drei Stufen): rosé < 35 %, sand < 70 %, mint ab 70 %.
+      const cls = p.total === 0 ? "" : p.pct >= 70 ? "high" : p.pct >= 35 ? "mid" : "low";
       const sub = p.total === 0 ? t("noTasksTile")
         : w.due > 0 ? t("nDue", w.due)
         : w.returning > 0 ? t("backOn", dayLabel(w.nextBack))
@@ -488,20 +499,65 @@ async function renderHaushalt() {
     <div class="code-box">${esc(currentHousehold.invite_code)}</div>`;
 }
 
-// --- Admin (Überblick über alle Haushalte; Zugriff prüft admin_overview() serverseitig) ---
+// --- Admin (Konten & Haushalte verwalten; Rechte prüfen admin_overview() + RLS serverseitig) ---
 async function renderAdmin() {
-  const { data, error } = await supabase.rpc("admin_overview");
-  if (error) { $("view-admin").innerHTML = `<p class="mut">${t("adminFail")}${esc(error.message)}</p>`; return; }
+  const data = ok(await supabase.rpc("admin_overview"));
+  if (!data) return;
   const locale = lang === "de" ? "de-DE" : "en-US";
   const fd = (x) => new Date(x).toLocaleDateString(locale, { day: "numeric", month: "numeric", year: "numeric" });
-  const hs = data.households || [];
-  $("view-admin").innerHTML = `
+  const el = $("view-admin");
+  el.innerHTML = `
     <div class="kh">${t("navAdmin")}</div>
     <h2 class="title">${t("adminTitle")}</h2>
-    <p class="mut">${t("adminSummary", data.users, hs.length)}</p>
-    ${hs.map(h => `<div class="prog" style="margin:16px 0">
-      <div class="lab"><span>${esc(h.name)}</span><span>${fd(h.created_at)}</span></div>
-      <p class="mut" style="margin:2px 0">${h.members.length ? h.members.map(esc).join(" · ") : t("adminNoMembers")}</p>
-      <p class="mut" style="margin:2px 0">${t("adminLine", h.zones, h.tasks_done, h.tasks)} — ${h.last_done ? t("adminLast", fd(h.last_done)) : t("adminLastNever")}</p>
+    <p class="mut">${t("adminSummary", data.users.length, data.households.length)}</p>
+    <h3 style="margin:18px 0 8px">${t("adminUsersH")}</h3>
+    ${data.users.map(u => `<div class="task todo">
+      <span>${esc(u.email)} <em class="turnus">${t("adminSince", fd(u.created_at))}</em></span>
+      ${u.id === currentUserId ? "" : `<span class="del" data-deluser="${u.id}" data-email="${esc(u.email)}">✕</span>`}
+    </div>`).join("")}
+    <h3 style="margin:18px 0 8px">${t("adminHhH")}</h3>
+    ${data.households.map(h => `<div class="zone" style="margin:0 0 14px">
+      <div class="zone-head">
+        <h3 data-renamehh="${h.id}" data-name="${esc(h.name)}" title="${t("renameHint")}">${esc(h.name)}</h3>
+        <span class="del" data-delhh="${h.id}" data-name="${esc(h.name)}">${t("del")}</span></div>
+      <p class="mut" style="margin:4px 0 8px">${t("adminInvite", esc(h.invite_code))} · ${t("adminSince", fd(h.created_at))}</p>
+      ${h.members.map(m => `<div class="task todo"><span>👤 ${esc(m.email)}</span>
+        <span class="del" data-rmmember="${h.id}" data-user="${m.id}" data-email="${esc(m.email)}">✕</span></div>`).join("")
+        || `<p class="mut">${t("adminNoMembers")}</p>`}
+      ${h.zones.map(z => `<div class="task todo">
+        <span>${esc(z.emoji)} ${esc(z.name)} <em class="turnus">${z.tasks_done}/${z.tasks}</em></span>
+        <span class="del" data-delzone="${z.id}">✕</span></div>`).join("")}
     </div>`).join("")}`;
+  el.querySelectorAll("[data-deluser]").forEach(b => b.onclick = async () => {
+    if (!confirm(t("confirmDelUser", b.dataset.email))) return;
+    if (!ok(await supabase.rpc("admin_delete_user", { p_user_id: b.dataset.deluser }))) return;
+    renderAdmin();
+  });
+  el.querySelectorAll("[data-renamehh]").forEach(b => b.onclick = async () => {
+    const name = prompt(t("renameHhPrompt"), b.dataset.name);
+    if (!name || !name.trim() || name.trim() === b.dataset.name) return;
+    if (!ok(await supabase.from("households").update({ name: name.trim() }).eq("id", b.dataset.renamehh))) return;
+    if (currentHousehold && currentHousehold.id === b.dataset.renamehh) {
+      currentHousehold.name = name.trim();
+      $("hh-name").textContent = currentHousehold.name;
+    }
+    renderAdmin();
+  });
+  el.querySelectorAll("[data-delhh]").forEach(b => b.onclick = async () => {
+    if (!confirm(t("confirmDelHh", b.dataset.name))) return;
+    if (!ok(await supabase.from("households").delete().eq("id", b.dataset.delhh))) return;
+    if (currentHousehold && currentHousehold.id === b.dataset.delhh) { route(); return; }
+    renderAdmin();
+  });
+  el.querySelectorAll("[data-rmmember]").forEach(b => b.onclick = async () => {
+    if (!confirm(t("confirmRmMember", b.dataset.email))) return;
+    if (!ok(await supabase.from("household_members").delete()
+      .eq("household_id", b.dataset.rmmember).eq("user_id", b.dataset.user))) return;
+    renderAdmin();
+  });
+  el.querySelectorAll("[data-delzone]").forEach(b => b.onclick = async () => {
+    if (!confirm(t("confirmDelZone"))) return;
+    if (!ok(await supabase.from("zones").delete().eq("id", b.dataset.delzone))) return;
+    renderAdmin();
+  });
 }
