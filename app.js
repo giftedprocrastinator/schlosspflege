@@ -4,6 +4,9 @@ import { zoneProgress, taskIsDone, nextDueAt, zoneWeek } from "./logic.js";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const $ = (id) => document.getElementById(id);
+// User-Eingaben (Zonen-/Aufgabennamen) vor innerHTML-Interpolation entschärfen.
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 // --- Sprache (DE/EN) ---
 const STR = {
@@ -172,8 +175,10 @@ function showView(name) {
   if (name === "haushalt") renderHaushalt();
 }
 
-// Reagiert auf Login/Logout (auch nach Magic-Link-Redirect).
-supabase.auth.onAuthStateChange(() => route());
+// Reagiert auf Login/Logout (auch nach Magic-Link-Redirect). setTimeout entkoppelt
+// route() vom Auth-Lock: supabase-js hält ihn während des Callbacks, getSession()
+// würde sonst deadlocken — Symptom: Reload blieb auf weißer Seite hängen.
+supabase.auth.onAuthStateChange(() => setTimeout(route, 0));
 applyLang();
 route();
 
@@ -292,7 +297,7 @@ async function renderZonen() {
         : t("allDone");
       return `<button class="tile ${cls}" data-open="${z.id}">
         <span class="tile-emoji">${z.emoji}</span>
-        <span class="tile-name">${z.name}</span>
+        <span class="tile-name">${esc(z.name)}</span>
         <div class="track"><i style="width:${p.pct}%"></i></div>
         <span class="tile-sub">${sub}</span>
       </button>`;
@@ -322,7 +327,7 @@ function renderZoneDetail(el, z, zt) {
   el.innerHTML = `
     <button class="link" id="zone-back">${t("allZones")}</button>
     <div class="zone-head" style="margin:14px 0 10px"><span class="emoji">${z.emoji}</span>
-      <h3 data-rename="${z.id}" title="${t("renameHint")}">${z.name}</h3>
+      <h3 data-rename="${z.id}" title="${t("renameHint")}">${esc(z.name)}</h3>
       <span class="del" data-delzone="${z.id}">${t("del")}</span></div>
     <div class="prog"><div class="lab"><span>${t("doneOf", p.done, p.total)}</span><span>${p.pct} %</span></div>
       <div class="track"><i style="width:${p.pct}%"></i></div></div>
@@ -336,7 +341,7 @@ function renderZoneDetail(el, z, zt) {
           : ` <em class="turnus">${intervalLabel(task.interval_days)}</em>`;
         return `<div class="task ${isDone ? "done" : "todo"}">
         <span class="ck" data-toggle="${task.id}" data-done="${isDone}">${isDone ? "✓" : ""}</span>
-        <span>${task.title}${badge}</span>
+        <span>${esc(task.title)}${badge}</span>
         <span class="del" data-deltask="${task.id}">✕</span></div>`; }).join("") || `<p class='mut'>${t("noTasks")}</p>`}
       <div class="addrow"><input placeholder="${t("taskPh")}" data-newtask="${z.id}">
         <select data-newinterval="${z.id}">${intervalOptions}</select>
@@ -402,7 +407,7 @@ async function renderFortschritt() {
   const rows = zones.map(z => {
     const p = zoneProgress(tasks.filter(t => t.zone_id === z.id));
     return `<div class="prog" style="margin:14px 0">
-      <div class="lab"><span>${z.emoji} ${z.name}</span><span>${p.done}/${p.total} · ${p.pct} %</span></div>
+      <div class="lab"><span>${z.emoji} ${esc(z.name)}</span><span>${p.done}/${p.total} · ${p.pct} %</span></div>
       <div class="track"><i style="width:${p.pct}%"></i></div></div>`;
   }).join("");
   $("view-fortschritt").innerHTML = `
@@ -417,7 +422,7 @@ async function renderFortschritt() {
 async function renderHaushalt() {
   $("view-haushalt").innerHTML = `
     <div class="kh">${t("household")}</div>
-    <h2 class="title">${currentHousehold.name}</h2>
+    <h2 class="title">${esc(currentHousehold.name)}</h2>
     <p class="mut">${t("shareCode")}</p>
-    <div class="code-box">${currentHousehold.invite_code}</div>`;
+    <div class="code-box">${esc(currentHousehold.invite_code)}</div>`;
 }
