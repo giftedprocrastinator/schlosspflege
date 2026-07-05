@@ -56,7 +56,7 @@ const STR = {
     membersH: "Mitglieder", meSuffix: "du", editMe: "Name/Emoji ändern",
     mePrompt: "Dein Anzeigename (Emoji voranstellen möglich):",
     nobody: "niemand", assignTitle: (n) => `Zugeordnet: ${n} — tippen zum Wechseln`,
-    doneAtTitle: "Erledigt-am nachtragen",
+    doneAtTitle: "Erledigt-am nachtragen", intervalTitle: "Turnus ändern",
     loadFail: "Verbindungsfehler — bitte neu laden.",
   },
   en: {
@@ -102,7 +102,7 @@ const STR = {
     membersH: "Members", meSuffix: "you", editMe: "Change name/emoji",
     mePrompt: "Your display name (you can prefix an emoji):",
     nobody: "nobody", assignTitle: (n) => `Assigned: ${n} — tap to switch`,
-    doneAtTitle: "Set completed-on date",
+    doneAtTitle: "Set completed-on date", intervalTitle: "Change repeat",
     loadFail: "Connection error — please reload.",
   },
 };
@@ -473,12 +473,13 @@ function renderZoneDetail(el, z, zt) {
         const isDone = taskIsDone(task);
         // Offene Aufgaben zeigen den Turnus, erledigte wann sie wiederkommen.
         const nd = nextDueAt(task);
-        const badge = !task.interval_days ? ""
-          : isDone ? ` <em class="turnus">${t("againOn", dayLabel(nd))}</em>`
-          : ` <em class="turnus">${intervalLabel(task.interval_days)}</em>`;
+        // Turnus-Pill ist ein echtes Select (antippen = ändern); erledigte zeigen zusätzlich die Wiederkehr.
+        const sel = ` <select class="turnus-sel" data-interval="${task.id}" title="${t("intervalTitle")}">${INTERVAL_DAYS.map(d =>
+          `<option value="${d ?? ""}"${(d ?? null) === (task.interval_days ?? null) ? " selected" : ""}>${intervalLabel(d)}</option>`).join("")}</select>`;
+        const badge = task.interval_days && isDone ? ` <em class="turnus">${t("againOn", dayLabel(nd))}</em>` : "";
         return `<div class="task ${isDone ? "done" : "todo"}">
         <span class="ck" data-toggle="${task.id}" data-done="${isDone}">${isDone ? "✓" : ""}</span>
-        <span>${esc(task.title)}${badge}</span>
+        <span>${esc(task.title)}${sel}${badge}</span>
         <button class="who" data-assigntask="${task.id}" data-cur="${task.assigned_to ?? ""}" title="${t("assignTitle", memberLabel(task.assigned_to))}">${esc(memberChip(task.assigned_to))}</button>
         <span class="del" data-doneat="${task.id}" title="${t("doneAtTitle")}">🗓</span>
         <span class="del" data-deltask="${task.id}">✕</span></div>`; }).join("") || `<p class='mut'>${t("noTasks")}</p>`}
@@ -501,6 +502,10 @@ function renderZoneDetail(el, z, zt) {
     toggleTask(c.dataset.toggle, c.dataset.done !== "true"));
   el.querySelectorAll("[data-deltask]").forEach(x => x.onclick = () => delTask(x.dataset.deltask));
   el.querySelectorAll("[data-doneat]").forEach(x => x.onclick = () => setDoneAt(x.dataset.doneat));
+  el.querySelectorAll("[data-interval]").forEach(s => s.onchange = async () => {
+    if (!ok(await supabase.from("tasks").update({ interval_days: s.value ? Number(s.value) : null }).eq("id", s.dataset.interval))) return;
+    renderZonen();
+  });
   el.querySelector("[data-addtask]").onclick = () => {
     const inp = el.querySelector("[data-newtask]");
     const sel = el.querySelector("[data-newinterval]");
