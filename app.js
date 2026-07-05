@@ -56,6 +56,8 @@ const STR = {
     membersH: "Mitglieder", meSuffix: "du", editMe: "Name/Emoji ändern",
     mePrompt: "Dein Anzeigename (Emoji voranstellen möglich):",
     nobody: "niemand", assignTitle: (n) => `Zugeordnet: ${n} — tippen zum Wechseln`,
+    doneAtTitle: "Erledigt-am nachtragen", doneAtPrompt: "Erledigt am (TT.MM.JJJJ):",
+    doneAtBad: "Datum nicht erkannt — Format TT.MM.JJJJ oder JJJJ-MM-TT.",
     loadFail: "Verbindungsfehler — bitte neu laden.",
   },
   en: {
@@ -101,6 +103,8 @@ const STR = {
     membersH: "Members", meSuffix: "you", editMe: "Change name/emoji",
     mePrompt: "Your display name (you can prefix an emoji):",
     nobody: "nobody", assignTitle: (n) => `Assigned: ${n} — tap to switch`,
+    doneAtTitle: "Set “completed on …”", doneAtPrompt: "Completed on (YYYY-MM-DD):",
+    doneAtBad: "Couldn't read the date — use YYYY-MM-DD.",
     loadFail: "Connection error — please reload.",
   },
 };
@@ -345,6 +349,15 @@ function intervalLabel(days) {
   return STR[lang].intervals[days ?? ""] ?? t("everyNDays", days);
 }
 
+// „Erledigt am"-Eingabe: TT.MM.JJJJ oder JJJJ-MM-TT (lokale Zeit, mittags = eindeutig im Kalendertag).
+function parseDay(s) {
+  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (m) return new Date(+m[1], m[2] - 1, +m[3], 12);
+  m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if (m) return new Date(+m[3], m[2] - 1, +m[1], 12);
+  return null;
+}
+
 // Kurzes Datum für „wieder fällig": Wochentag innerhalb von 7 Tagen, sonst Datum.
 function dayLabel(ts) {
   const locale = lang === "de" ? "de-DE" : "en-US";
@@ -478,6 +491,7 @@ function renderZoneDetail(el, z, zt) {
         <span class="ck" data-toggle="${task.id}" data-done="${isDone}">${isDone ? "✓" : ""}</span>
         <span>${esc(task.title)}${badge}</span>
         <button class="who" data-assigntask="${task.id}" data-cur="${task.assigned_to ?? ""}" title="${t("assignTitle", memberLabel(task.assigned_to))}">${esc(memberChip(task.assigned_to))}</button>
+        <span class="del" data-doneat="${task.id}" title="${t("doneAtTitle")}">🗓</span>
         <span class="del" data-deltask="${task.id}">✕</span></div>`; }).join("") || `<p class='mut'>${t("noTasks")}</p>`}
       <div class="addrow"><input placeholder="${t("taskPh")}" data-newtask="${z.id}">
         <select data-newinterval="${z.id}">${intervalOptions}</select>
@@ -497,6 +511,7 @@ function renderZoneDetail(el, z, zt) {
   el.querySelectorAll("[data-toggle]").forEach(c => c.onclick = () =>
     toggleTask(c.dataset.toggle, c.dataset.done !== "true"));
   el.querySelectorAll("[data-deltask]").forEach(x => x.onclick = () => delTask(x.dataset.deltask));
+  el.querySelectorAll("[data-doneat]").forEach(x => x.onclick = () => setDoneAt(x.dataset.doneat));
   el.querySelector("[data-addtask]").onclick = () => {
     const inp = el.querySelector("[data-newtask]");
     const sel = el.querySelector("[data-newinterval]");
@@ -537,6 +552,16 @@ async function addTask(zoneId, title, intervalDays = null) {
 }
 async function toggleTask(id, done) {
   if (!ok(await supabase.from("tasks").update({ done, done_at: done ? new Date().toISOString() : null }).eq("id", id))) return;
+  renderZonen();
+}
+// „Erledigt am" nachtragen — falls das Abhaken vergessen wurde; Turnus rechnet ab dem Datum.
+async function setDoneAt(id) {
+  const text = prompt(t("doneAtPrompt"),
+    lang === "de" ? new Date().toLocaleDateString("de-DE") : new Date().toISOString().slice(0, 10));
+  if (!text || !text.trim()) return;
+  const d = parseDay(text.trim());
+  if (!d || isNaN(d.getTime())) { alert(t("doneAtBad")); return; }
+  if (!ok(await supabase.from("tasks").update({ done: true, done_at: d.toISOString() }).eq("id", id))) return;
   renderZonen();
 }
 async function delTask(id) {
