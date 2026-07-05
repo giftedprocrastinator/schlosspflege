@@ -56,8 +56,7 @@ const STR = {
     membersH: "Mitglieder", meSuffix: "du", editMe: "Name/Emoji ändern",
     mePrompt: "Dein Anzeigename (Emoji voranstellen möglich):",
     nobody: "niemand", assignTitle: (n) => `Zugeordnet: ${n} — tippen zum Wechseln`,
-    doneAtTitle: "Erledigt-am nachtragen", doneAtPrompt: "Erledigt am (TT.MM.JJJJ):",
-    doneAtBad: "Datum nicht erkannt — Format TT.MM.JJJJ oder JJJJ-MM-TT.",
+    doneAtTitle: "Erledigt-am nachtragen",
     loadFail: "Verbindungsfehler — bitte neu laden.",
   },
   en: {
@@ -103,8 +102,7 @@ const STR = {
     membersH: "Members", meSuffix: "you", editMe: "Change name/emoji",
     mePrompt: "Your display name (you can prefix an emoji):",
     nobody: "nobody", assignTitle: (n) => `Assigned: ${n} — tap to switch`,
-    doneAtTitle: "Set “completed on …”", doneAtPrompt: "Completed on (YYYY-MM-DD):",
-    doneAtBad: "Couldn't read the date — use YYYY-MM-DD.",
+    doneAtTitle: "Set completed-on date",
     loadFail: "Connection error — please reload.",
   },
 };
@@ -349,15 +347,6 @@ function intervalLabel(days) {
   return STR[lang].intervals[days ?? ""] ?? t("everyNDays", days);
 }
 
-// „Erledigt am"-Eingabe: TT.MM.JJJJ oder JJJJ-MM-TT (lokale Zeit, mittags = eindeutig im Kalendertag).
-function parseDay(s) {
-  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
-  if (m) return new Date(+m[1], m[2] - 1, +m[3], 12);
-  m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
-  if (m) return new Date(+m[3], m[2] - 1, +m[1], 12);
-  return null;
-}
-
 // Kurzes Datum für „wieder fällig": Wochentag innerhalb von 7 Tagen, sonst Datum.
 function dayLabel(ts) {
   const locale = lang === "de" ? "de-DE" : "en-US";
@@ -554,15 +543,18 @@ async function toggleTask(id, done) {
   if (!ok(await supabase.from("tasks").update({ done, done_at: done ? new Date().toISOString() : null }).eq("id", id))) return;
   renderZonen();
 }
-// „Erledigt am" nachtragen — falls das Abhaken vergessen wurde; Turnus rechnet ab dem Datum.
-async function setDoneAt(id) {
-  const text = prompt(t("doneAtPrompt"),
-    lang === "de" ? new Date().toLocaleDateString("de-DE") : new Date().toISOString().slice(0, 10));
-  if (!text || !text.trim()) return;
-  const d = parseDay(text.trim());
-  if (!d || isNaN(d.getTime())) { alert(t("doneAtBad")); return; }
-  if (!ok(await supabase.from("tasks").update({ done: true, done_at: d.toISOString() }).eq("id", id))) return;
-  renderZonen();
+// „Erledigt am" nachtragen — nativer Date-Picker; Turnus rechnet ab dem gewählten Tag.
+function setDoneAt(id) {
+  const inp = $("doneat-input");
+  inp.value = new Date().toLocaleDateString("en-CA"); // heutiges Datum als JJJJ-MM-TT, lokal
+  inp.onchange = async () => {
+    if (!inp.value) return;
+    const [y, m, d] = inp.value.split("-").map(Number);
+    const ts = new Date(y, m - 1, d, 12); // Mittag: eindeutig im Kalendertag
+    if (!ok(await supabase.from("tasks").update({ done: true, done_at: ts.toISOString() }).eq("id", id))) return;
+    renderZonen();
+  };
+  if (inp.showPicker) inp.showPicker(); else inp.focus();
 }
 async function delTask(id) {
   if (!ok(await supabase.from("tasks").delete().eq("id", id))) return;

@@ -95,4 +95,5 @@ h2.title{font-size:26px;font-weight:700;letter-spacing:-.01em;margin:6px 0 18px;
 .who{font:inherit;font-size:13px;line-height:1;border:1px dashed var(--line);background:#fff;color:var(--ink);border-radius:999px;min-width:26px;height:26px;padding:0 7px;cursor:pointer;flex:none}
 .weekbar{display:flex;gap:14px;margin:4px 0 10px}
 .link.act{color:var(--ink);font-weight:700}
+.sr-date{position:absolute;left:0;bottom:0;width:1px;height:1px;opacity:0;border:0;padding:0}
 .code-box{font-family:ui-monospace,monospace;font-size:18px;background:#f5f6f5;border:1px dashed var(--line);border-radius:10px;padding:12px 16px;text-align:center;letter-spacing:.08em}
