@@ -514,8 +514,10 @@ function renderZoneDetail(el, z, zt) {
 }
 
 // Emoji-Präfix aus dem Namen ziehen (erstes „Wort“, wenn Emoji), sonst Default.
+// Nimmt Variation Selector (☀️ = ☀+FE0F) und ZWJ-Sequenzen (👩‍🌾) mit.
+const EMOJI_PREFIX = /^(\p{Extended_Pictographic}(?:️|‍\p{Extended_Pictographic}️?)*)\s*(.*)$/u;
 function splitEmoji(text) {
-  const m = text.match(/^(\p{Extended_Pictographic})\s*(.*)$/u);
+  const m = text.match(EMOJI_PREFIX);
   return m ? { emoji: m[1], name: m[2] || m[1] } : { emoji: "🏠", name: text };
 }
 
@@ -604,7 +606,7 @@ async function renderHaushalt() {
     const me = hhMembers.find(m => m.user_id === currentUserId);
     const text = prompt(t("mePrompt"), `${me.emoji ? me.emoji + " " : ""}${me.display_name || ""}`);
     if (!text || !text.trim()) return;
-    const m = text.trim().match(/^(\p{Extended_Pictographic})\s*(.*)$/u);
+    const m = text.trim().match(EMOJI_PREFIX);
     const patch = m ? { emoji: m[1], display_name: m[2] || me.display_name } : { emoji: null, display_name: text.trim() };
     if (!ok(await supabase.from("household_members").update(patch)
       .eq("household_id", currentHousehold.id).eq("user_id", currentUserId))) return;
