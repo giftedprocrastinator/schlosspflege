@@ -14,10 +14,23 @@ App umschaltbar (DE/EN).**
 
 ## Features
 
-- 🧩 Zone tiles with progress bars → tap to open the task list
-- 🔁 Recurring tasks (`interval_days`): done today, due again after the interval
+- 🧩 Zone tiles with progress bars (three-step color scale) → tap to open the task list
+- 🔁 Recurring tasks (`interval_days`) in **calendar days**: checked off in the
+  evening, due again the next morning — repeat is changeable per task (tap the pill)
+- 🗓 This-week list on the overview: everything due now or coming back by Sunday,
+  checkable in place, with an "All / Just me" filter
+- 🙋 Assign zones & tasks to household members (tap the chip to cycle); tasks
+  inherit the zone's assignee; members pick their own display name + emoji
+- ⏪ Backfill "done on" via the native date picker (🗓 per task)
 - 📋 Zone templates with sensible default tasks & rhythms (DE/EN) — usable multiple times
-- 👨‍👩‍👧 One shared household per family, magic-link login, row-level security
+- 👨‍👩‍👧 One shared household per family, row-level security; sign-in via
+  **magic link or the 6-digit code** from the same email (code works around
+  the separate-Safari-session issue of iOS home-screen apps)
+- 🔒 **Sign-ups are closed** (`shouldCreateUser:false` + dashboard toggle):
+  accounts are created deliberately; the invite code only lets *existing*
+  accounts join a household
+- 🛠 Admin panel (admin account only, enforced server-side): manage accounts,
+  households, members and zones
 - 📱 Mobile-first, installable on the home screen (app icon included)
 
 ## Stack
@@ -35,10 +48,21 @@ framework, no build step.
 ## Supabase einrichten / Setup
 
 1. Projekt auf supabase.com anlegen. / Create a project on supabase.com.
-2. SQL-Editor → Inhalt von `supabase/schema.sql` ausführen. / Run `supabase/schema.sql`.
+2. SQL-Editor → die vier Dateien aus `supabase/` **in dieser Reihenfolge**
+   ausführen / run the four files in `supabase/` in this order:
+   `schema.sql` (Tabellen, RPCs, RLS) → `admin.sql` (Admin-Rolle + Panel-RPCs;
+   Admin-E-Mail in `is_admin()` anpassen / adjust the admin email) →
+   `hardening.sql` (RPCs nur für eingeloggte Nutzer / RPCs for signed-in users
+   only) → `assignments.sql` (Zuordnungen + Mitglieder-Profile).
 3. Authentication → Providers → Email aktivieren (Magic Link).
-4. Authentication → URL Configuration → Site-URL + Redirect auf die Deploy-Domain setzen.
-5. `SUPABASE_URL` + `SUPABASE_ANON_KEY` in `config.js` eintragen.
+4. Authentication → Email Templates → „Magic Link": neben dem Link auch
+   `{{ .Token }}` einfügen — das ist der 6-stellige Code für den Code-Login. /
+   Add `{{ .Token }}` to the magic-link template for the code sign-in.
+5. Authentication → Sign In / Up → „Allow new users to sign up" **aus**schalten
+   (die App setzt zusätzlich `shouldCreateUser:false`); Konten dann bewusst
+   anlegen. / Disable open sign-ups; create accounts deliberately.
+6. Authentication → URL Configuration → Site-URL + Redirect auf die Deploy-Domain setzen.
+7. `SUPABASE_URL` + `SUPABASE_ANON_KEY` in `config.js` eintragen.
 
 ## Deploy (Vercel)
 
@@ -49,10 +73,13 @@ framework, no build step.
 
 ## Tests
 
-- `node logic.js` → prüft die reine Logik (Turnus + Fortschritt). / self-tests
-  for the pure logic (recurrence + progress).
+- `node logic.js` → prüft die reine Logik (Kalendertag-Turnus, Fortschritt,
+  Wochen-Rechnung). / self-tests for the pure logic (calendar-day recurrence,
+  progress, week math).
 
 ## Phase 2 (später / later)
 
-Wochen-Kalender (`tasks.planned_for`), Notizen/Foto pro Zone (Storage-Bucket
-`zone-photos`). / Weekly calendar, notes/photo per zone.
+Notizen/Foto pro Zone (Storage-Bucket `zone-photos`); der geplante
+Wochen-Kalender (`tasks.planned_for`) ist durch die Wochenliste teilweise
+abgedeckt. / Notes/photo per zone; the weekly calendar is partly covered by
+the this-week list already.
