@@ -40,8 +40,7 @@ export function zoneWeek(tasks, now = Date.now()) {
   for (const t of tasks) {
     if (!taskIsDone(t, now)) { due++; continue; }
     const nd = nextDueAt(t);
-    if (nd < end && (nextBack === null || nd < nextBack)) nextBack = nd;
-    if (nd < end) returning++;
+    if (nd < end) { returning++; if (nextBack === null || nd < nextBack) nextBack = nd; }
   }
   return { due, returning, nextBack };
 }

@@ -7,6 +7,9 @@ const $ = (id) => document.getElementById(id);
 // User-Eingaben (Zonen-/Aufgabennamen) vor innerHTML-Interpolation entschärfen.
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+// Einheitliches Fehler-Muster: Supabase-Fehler melden statt still verschlucken.
+// Gibt data (bzw. true bei reinen Schreib-Calls) zurück, bei Fehler null.
+const ok = ({ data, error }) => { if (error) alert(error.message); return error ? null : (data ?? true); };
 
 // --- Sprache (DE/EN) ---
 const STR = {
@@ -42,6 +45,7 @@ const STR = {
     adminLine: (z, d, tot) => `${z} Zonen · ${d}/${tot} Aufgaben erledigt`,
     adminLast: (x) => `zuletzt erledigt: ${x}`, adminLastNever: "noch nichts erledigt",
     adminNoMembers: "keine Mitglieder", adminFail: "Kein Zugriff: ",
+    loadFail: "Verbindungsfehler — bitte neu laden.",
   },
   en: {
     lede: "A tidy home — zone by zone.", emailPh: "you@email.com",
@@ -75,6 +79,7 @@ const STR = {
     adminLine: (z, d, tot) => `${z} zones · ${d}/${tot} tasks done`,
     adminLast: (x) => `last completed: ${x}`, adminLastNever: "nothing completed yet",
     adminNoMembers: "no members", adminFail: "No access: ",
+    loadFail: "Connection error — please reload.",
   },
 };
 let lang = localStorage.getItem("lang") || "de";
@@ -109,19 +114,22 @@ async function route() {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) { showScreen("login-view"); return; }
   $("user-email").textContent = session.user.email;
-  // Mitgliedschaft laden
-  const { data: members } = await supabase
+  // Mitgliedschaft laden. Bei Netzfehler NICHT in den Setup-Screen fallen —
+  // sonst legt man dort versehentlich einen zweiten Haushalt an.
+  const { data: members, error } = await supabase
     .from("household_members")
     .select("household_id, households(id,name,invite_code)")
+    .order("joined_at")
     .limit(1);
-  if (!members || members.length === 0) { showScreen("setup-view"); return; }
+  if (error) { showScreen("login-view"); $("login-msg").textContent = t("loadFail"); return; }
+  if (members.length === 0) { showScreen("setup-view"); return; }
   currentHousehold = members[0].households;
   $("hh-name").textContent = currentHousehold.name;
   // Admin-Menüpunkt nur fürs Admin-Konto — die echte Prüfung macht admin_overview() serverseitig.
   const { data: isAdmin } = await supabase.rpc("is_admin");
   $("menu-admin").classList.toggle("hidden", !isAdmin);
   showScreen("app-view");
-  showView("zonen");
+  showView(currentView); // nach Auth-Events in der aktuellen Ansicht bleiben
 }
 
 // --- Burger-Menü ---
@@ -149,20 +157,21 @@ $("login-send").addEventListener("click", async () => {
 
 $("menu-admin").addEventListener("click", () => {
   $("menu").classList.add("hidden");
-  document.querySelectorAll("#sidebar-nav a").forEach(x => x.classList.remove("act"));
   showView("admin");
 });
 
 $("logout").addEventListener("click", async () => {
-  await supabase.auth.signOut();
-  route();
+  currentView = "zonen"; // nächster Login startet wieder auf der Übersicht
+  await supabase.auth.signOut(); // SIGNED_OUT-Event stößt route() an
 });
 
 // --- Haushalt anlegen / beitreten ---
 $("setup-create").addEventListener("click", async () => {
   const name = $("setup-name").value.trim();
   if (!name) { $("setup-msg").textContent = t("enterName"); return; }
+  $("setup-create").disabled = true; // Doppel-Tap würde zwei Haushalte anlegen
   const { error } = await supabase.rpc("create_household", { p_name: name });
+  $("setup-create").disabled = false;
   if (error) { $("setup-msg").textContent = error.message; return; }
   route();
 });
@@ -170,7 +179,9 @@ $("setup-create").addEventListener("click", async () => {
 $("setup-join").addEventListener("click", async () => {
   const code = $("setup-code").value.trim();
   if (!code) { $("setup-msg").textContent = t("enterCode"); return; }
+  $("setup-join").disabled = true;
   const { error } = await supabase.rpc("join_household", { p_code: code });
+  $("setup-join").disabled = false;
   if (error) { $("setup-msg").textContent = t("joinFail") + error.message; return; }
   route();
 });
@@ -178,15 +189,14 @@ $("setup-join").addEventListener("click", async () => {
 // Sidebar-Navigation
 $("sidebar-nav").addEventListener("click", (e) => {
   const a = e.target.closest("a[data-view]");
-  if (!a) return;
-  document.querySelectorAll("#sidebar-nav a").forEach(x => x.classList.remove("act"));
-  a.classList.add("act");
-  showView(a.dataset.view);
+  if (a) showView(a.dataset.view);
 });
 
 let currentView = "zonen";
 function showView(name) {
   currentView = name;
+  // Tab-Markierung hier pflegen, damit sie auch bei programmatischen Wechseln stimmt.
+  document.querySelectorAll("#sidebar-nav a").forEach(x => x.classList.toggle("act", x.dataset.view === name));
   for (const v of ["zonen", "fortschritt", "haushalt", "admin"])
     $("view-" + v).classList.toggle("hidden", v !== name);
   if (name === "zonen") renderZonen();
@@ -195,12 +205,17 @@ function showView(name) {
   if (name === "admin") renderAdmin();
 }
 
-// Reagiert auf Login/Logout (auch nach Magic-Link-Redirect). setTimeout entkoppelt
-// route() vom Auth-Lock: supabase-js hält ihn während des Callbacks, getSession()
-// würde sonst deadlocken — Symptom: Reload blieb auf weißer Seite hängen.
-supabase.auth.onAuthStateChange(() => setTimeout(route, 0));
+// Reagiert auf INITIAL_SESSION (Start/Reload), SIGNED_IN (Magic-Link) und SIGNED_OUT.
+// TOKEN_REFRESHED (ca. stündlich) rendert bewusst NICHT neu — das würde halb getippte
+// Eingaben wegwischen. setTimeout entkoppelt route() vom Auth-Lock: supabase-js hält
+// ihn während des Callbacks, getSession() würde sonst deadlocken (Reload = weiße Seite).
+supabase.auth.onAuthStateChange((event) => {
+  if (event !== "TOKEN_REFRESHED") setTimeout(route, 0);
+});
+// Fehlgeschlagener Magic-Link (abgelaufen/schon benutzt) kommt als #error_description zurück.
+const authErr = new URLSearchParams(location.hash.slice(1)).get("error_description");
+if (authErr) $("login-msg").textContent = authErr;
 applyLang();
-route();
 
 // --- Zonen-Plan ---
 
@@ -257,7 +272,7 @@ const SEED = [
   ]},
 ];
 
-const INTERVAL_DAYS = [null, 1, 3, 4, 7, 14, 30, 90];
+const INTERVAL_DAYS = [null, 1, 3, 4, 7, 14, 30, 90]; // synchron halten mit STR.de/en.intervals
 
 function intervalLabel(days) {
   return STR[lang].intervals[days ?? ""] ?? t("everyNDays", days);
@@ -273,30 +288,36 @@ function dayLabel(ts) {
 
 // Eine Zone aus einer Vorlage anlegen (inkl. Standardaufgaben, in der aktiven Sprache) — mehrfach möglich.
 async function addZoneFromTemplate(tpl) {
-  const { data: zone } = await supabase.from("zones")
+  const zone = ok(await supabase.from("zones")
     .insert({ household_id: currentHousehold.id, name: tpl.name[lang], emoji: tpl.emoji })
-    .select().single();
-  if (zone) await supabase.from("tasks").insert(tpl.tasks.map(([title, days], j) =>
-    ({ zone_id: zone.id, title: title[lang], interval_days: days, position: j })));
+    .select().single());
+  if (!zone) return;
+  ok(await supabase.from("tasks").insert(tpl.tasks.map(([title, days], j) =>
+    ({ zone_id: zone.id, title: title[lang], interval_days: days, position: j }))));
   renderZonen();
 }
+// Liefert null bei Netz-/DB-Fehler (bereits gemeldet) — Aufrufer lässt die letzte Ansicht stehen.
 async function loadZonen() {
-  const { data: zones } = await supabase
+  const zones = ok(await supabase
     .from("zones").select("*").eq("household_id", currentHousehold.id)
-    .order("position").order("created_at");
-  const ids = (zones || []).map(z => z.id);
+    .order("position").order("created_at"));
+  if (!zones) return null;
+  const ids = zones.map(z => z.id);
   let tasks = [];
   if (ids.length) {
-    const res = await supabase.from("tasks").select("*").in("zone_id", ids).order("created_at");
-    tasks = res.data || [];
+    tasks = ok(await supabase.from("tasks").select("*").in("zone_id", ids)
+      .order("position").order("created_at"));
+    if (!tasks) return null;
   }
-  return { zones: zones || [], tasks };
+  return { zones, tasks };
 }
 
 let openZoneId = null; // gerade geöffnete Zone (null = Kachel-Übersicht)
 
 async function renderZonen() {
-  const { zones, tasks } = await loadZonen();
+  const data = await loadZonen();
+  if (!data) return;
+  const { zones, tasks } = data;
   const el = $("view-zonen");
   const open = zones.find(z => z.id === openZoneId);
   if (open) { renderZoneDetail(el, open, tasks.filter(t => t.zone_id === open.id)); return; }
@@ -389,12 +410,12 @@ function splitEmoji(text) {
 async function addZone(text) {
   if (!text) return;
   const { emoji, name } = splitEmoji(text);
-  await supabase.from("zones").insert({ household_id: currentHousehold.id, name, emoji });
+  if (!ok(await supabase.from("zones").insert({ household_id: currentHousehold.id, name, emoji }))) return;
   renderZonen();
 }
 async function delZone(id) {
   if (!confirm(t("confirmDelZone"))) return;
-  await supabase.from("zones").delete().eq("id", id);
+  if (!ok(await supabase.from("zones").delete().eq("id", id))) return;
   renderZonen();
 }
 async function renameZone(id, current) {
@@ -403,26 +424,28 @@ async function renameZone(id, current) {
   const { emoji, name } = splitEmoji(text.trim());
   const patch = { name };
   if (emoji !== "🏠" || text.trim().startsWith("🏠")) patch.emoji = emoji;
-  await supabase.from("zones").update(patch).eq("id", id);
+  if (!ok(await supabase.from("zones").update(patch).eq("id", id))) return;
   renderZonen();
 }
 async function addTask(zoneId, title, intervalDays = null) {
   if (!title) return;
-  await supabase.from("tasks").insert({ zone_id: zoneId, title, interval_days: intervalDays });
+  if (!ok(await supabase.from("tasks").insert({ zone_id: zoneId, title, interval_days: intervalDays }))) return;
   renderZonen();
 }
 async function toggleTask(id, done) {
-  await supabase.from("tasks").update({ done, done_at: done ? new Date().toISOString() : null }).eq("id", id);
+  if (!ok(await supabase.from("tasks").update({ done, done_at: done ? new Date().toISOString() : null }).eq("id", id))) return;
   renderZonen();
 }
 async function delTask(id) {
-  await supabase.from("tasks").delete().eq("id", id);
+  if (!ok(await supabase.from("tasks").delete().eq("id", id))) return;
   renderZonen();
 }
 
 // --- Fortschritt (Gesamtübersicht) ---
 async function renderFortschritt() {
-  const { zones, tasks } = await loadZonen();
+  const data = await loadZonen();
+  if (!data) return;
+  const { zones, tasks } = data;
   const all = zoneProgress(tasks);
   const rows = zones.map(z => {
     const p = zoneProgress(tasks.filter(t => t.zone_id === z.id));
