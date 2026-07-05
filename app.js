@@ -1,6 +1,6 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
-import { zoneProgress, taskIsDone, nextDueAt, zoneWeek } from "./logic.js";
+import { zoneProgress, taskIsDone, nextDueAt, zoneWeek, weekEnd } from "./logic.js";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const $ = (id) => document.getElementById(id);
