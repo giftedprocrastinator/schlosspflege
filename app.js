@@ -633,6 +633,7 @@ async function renderAdmin() {
     ${data.households.map(h => `<div class="zone" style="margin:0 0 14px">
       <div class="zone-head">
         <h3 data-renamehh="${h.id}" data-name="${esc(h.name)}" title="${t("renameHint")}">${esc(h.name)}</h3>
+        <span class="del" data-renamehh="${h.id}" data-name="${esc(h.name)}" title="${t("renameHhPrompt")}">✎</span>
         <span class="del" data-delhh="${h.id}" data-name="${esc(h.name)}">${t("del")}</span></div>
       <p class="mut" style="margin:4px 0 8px">${t("adminInvite", esc(h.invite_code))} · ${t("adminSince", fd(h.created_at))}</p>
       ${h.members.map(m => `<div class="task todo"><span>👤 ${esc(m.email)}</span>
